@@ -494,6 +494,32 @@ export function stopAllEnemyLoopSfx(scene: Phaser.Scene): void {
   }
 }
 
+/** Pause or resume combat loops and active one-shots (e.g. game pause menu). */
+export function setCombatSfxPaused(scene: Phaser.Scene, paused: boolean): void {
+  const loopMap = sharedEnemyLoops.get(scene);
+  if (loopMap) {
+    for (const entry of loopMap.values()) {
+      if (paused) {
+        if (entry.sound.isPlaying) entry.sound.pause();
+      } else if (entry.sound.isPaused) {
+        entry.sound.resume();
+      }
+    }
+  }
+
+  const oneShots = oneShotTracks.get(scene);
+  if (!oneShots) return;
+  for (const track of oneShots.values()) {
+    for (const sound of track.activeSounds) {
+      if (paused) {
+        if (sound.isPlaying) sound.pause();
+      } else if (sound.isPaused) {
+        sound.resume();
+      }
+    }
+  }
+}
+
 /** Stop all gameplay SFX (loops, bounces, hits) — call on death, boss, shutdown. */
 export function stopAllCombatSfx(scene: Phaser.Scene): void {
   stopPumpkinBounceSfx(scene);

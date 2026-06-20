@@ -39,7 +39,7 @@ import {
   LevelMusicCycle,
   type LevelMusicHandle,
 } from '../assets/musicAssets';
-import { pruneEnemyMovementSfx, stopAllCombatSfx } from '../assets/soundFxAssets';
+import { pruneEnemyMovementSfx, setCombatSfxPaused, stopAllCombatSfx } from '../assets/soundFxAssets';
 
 export default class GameScene extends Phaser.Scene {
   player!: Player;
@@ -187,17 +187,33 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
-    this.stopBossMusic();
-    this.stopLevelMusic();
-    stopAllCombatSfx(this);
+    this.stopAllGameAudio();
     this.abilitySystem?.cancelActiveEffects(this.player);
-    this.playerWalkingSfx?.stop();
     this.time.removeAllEvents();
     this.time.timeScale = 1;
     this.physics.resume();
     this.tweens.resumeAll();
     this.playerProjectiles?.getChildren().forEach((p) => p.destroy());
     this.projectiles?.getChildren().forEach((p) => p.destroy());
+  }
+
+  private stopAllGameAudio(): void {
+    this.stopBossMusic();
+    this.stopLevelMusic();
+    stopAllCombatSfx(this);
+    this.abilitySystem?.stopExplosionSfx();
+    this.playerWalkingSfx?.stop();
+  }
+
+  private exitToMainMenu(): void {
+    this.paused = false;
+    this.pauseOverlay?.setVisible(false);
+    this.time.timeScale = 1;
+    this.physics.resume();
+    this.tweens.resumeAll();
+    this.stopAllGameAudio();
+    this.abilitySystem?.cancelActiveEffects(this.player);
+    this.scene.start('MainMenuScene');
   }
 
   private clampEntity(sprite: Parameters<typeof clampSpriteToWorld>[0]): void {
@@ -706,12 +722,8 @@ export default class GameScene extends Phaser.Scene {
       const enemy = e as Enemy;
       enemy.setVelocity(0, 0);
     });
-    this.stopBossMusic();
-    this.stopLevelMusic();
-    stopAllCombatSfx(this);
+    this.stopAllGameAudio();
     this.abilitySystem.cancelActiveEffects(this.player);
-    this.abilitySystem.stopExplosionSfx();
-    this.playerWalkingSfx.stop();
     this.time.delayedCall(0, () => {
       if (!this.scene.isActive()) return;
       this.scene.start('GameOverScene', {
@@ -747,6 +759,7 @@ export default class GameScene extends Phaser.Scene {
       this.levelMusic?.pause();
       this.abilitySystem.pauseExplosionSfx(true);
       this.playerWalkingSfx.setPaused(true);
+      setCombatSfxPaused(this, true);
     } else {
       this.physics.resume();
       this.tweens.resumeAll();
@@ -757,6 +770,7 @@ export default class GameScene extends Phaser.Scene {
       this.levelMusic?.resume();
       this.abilitySystem.pauseExplosionSfx(false);
       this.playerWalkingSfx.setPaused(false);
+      setCombatSfxPaused(this, false);
     }
   }
 
@@ -889,10 +903,7 @@ export default class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     quit.on('pointerover', () => quit.setColor('#ffc857'));
     quit.on('pointerout', () => quit.setColor('#ff4757'));
-    quit.on('pointerdown', () => {
-      this.setPaused(false);
-      this.scene.start('MainMenuScene');
-    });
+    quit.on('pointerdown', () => this.exitToMainMenu());
 
     blocker.on('pointerdown', (_p: unknown, _x: unknown, _y: unknown, ev?: Phaser.Types.Input.EventData) => {
       ev?.stopPropagation();

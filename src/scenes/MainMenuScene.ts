@@ -35,9 +35,16 @@ import {
   INTRO_SFX_GAP_MS,
   playIntroSfxOnce,
   startMenuBackgroundSfx,
+  stopAllCombatSfx,
   stopIntroSfx,
   stopMenuBackgroundSfx,
 } from '../assets/soundFxAssets';
+import {
+  BOSS_MUSIC_KEY,
+  hasBossMusic,
+  stopLevel1Music,
+  stopLevel2Music,
+} from '../assets/musicAssets';
 
 type MenuAction = () => void;
 
@@ -55,6 +62,8 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.silenceGameplayAudio();
+
     this.inputManager = new InputManager(this);
     this.menuItems = [];
     this.selectedIndex = 0;
@@ -216,6 +225,15 @@ export default class MainMenuScene extends Phaser.Scene {
     this.refreshHighlight();
     this.startMenuAudio();
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuAudio());
+  }
+
+  private silenceGameplayAudio(): void {
+    stopAllCombatSfx(this);
+    stopLevel1Music(this);
+    stopLevel2Music(this);
+    if (hasBossMusic(this)) {
+      this.sound.stopByKey(BOSS_MUSIC_KEY);
+    }
   }
 
   private startMenuAudio(): void {
