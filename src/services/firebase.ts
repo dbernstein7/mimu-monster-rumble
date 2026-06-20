@@ -211,8 +211,12 @@ export async function login(
 
 export async function logout(): Promise<void> {
   if (initFirebase() && auth) {
-    await signOut(auth);
+    await Promise.race([
+      signOut(auth),
+      new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
+    ]);
   }
+  authReadyPromise = null;
   const { clearProfileCache } = await import('./userProfile');
   clearProfileCache();
 }

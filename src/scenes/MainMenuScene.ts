@@ -174,14 +174,10 @@ export default class MainMenuScene extends Phaser.Scene {
           authButtonY,
           LOG_OUT_BUTTON_TEXTURE_KEY,
           menuButtonWidth,
-          () => {
-            void logout().then(() => this.scene.start('AuthScene', { next: 'MainMenuScene' }));
-          },
+          () => this.handleLogout(),
         );
       } else {
-        this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'LOG OUT', () => {
-          void logout().then(() => this.scene.start('AuthScene', { next: 'MainMenuScene' }));
-        });
+        this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'LOG OUT', () => this.handleLogout());
       }
     } else if (hasSignInButtonTexture(this)) {
       this.addImageMenuButton(
@@ -307,6 +303,16 @@ export default class MainMenuScene extends Phaser.Scene {
     this.introSound?.destroy();
     this.introSound = undefined;
     stopIntroSfx(this);
+  }
+
+  private handleLogout(): void {
+    this.stopMenuAudio();
+    this.scene.start('AuthScene', {
+      next: 'MainMenuScene',
+      mode: 'login',
+      fromLogout: true,
+    });
+    void logout().catch(() => undefined);
   }
 
   private startGame(): void {
