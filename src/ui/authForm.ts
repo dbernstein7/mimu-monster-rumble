@@ -21,6 +21,7 @@ export interface AuthFormHandle {
 
 const STYLE_ID = 'mimu-auth-form-styles';
 const OVERLAY_CLASS = 'mimu-auth-overlay';
+const SHELL_CLASS = 'mimu-auth-shell';
 const FORM_CLASS = 'mimu-auth-form';
 const LEGACY_FORM_ID = 'mimu-auth-form';
 
@@ -30,8 +31,15 @@ const AUTH_PANEL = {
   y: 80,
   width: 640,
   height: 520,
-  /** Space reserved for ACCOUNT title + subtitle before form content. */
   contentTop: 195,
+} as const;
+
+/** Game-space anchors for auth HTML (1280×720). */
+const AUTH_LAYOUT = {
+  /** Center of tabs + login form block — upper half of panel body. */
+  formCenterY: 310,
+  /** Back button sits near the bottom inside the panel frame. */
+  backY: 592,
 } as const;
 
 function submitLabel(mode: AuthFormMode): string {
@@ -43,14 +51,18 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
+    .${SHELL_CLASS} {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      pointer-events: none;
+    }
     .${OVERLAY_CLASS} {
       position: absolute;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
       gap: 0.75rem;
-      z-index: 20;
       pointer-events: auto;
       transform: translate(-50%, -50%);
       width: min(420px, 88%);
@@ -155,11 +167,12 @@ function ensureStyles(): void {
       cursor: wait;
     }
     .mimu-auth-action {
+      position: absolute;
+      transform: translate(-50%, -50%);
       border: 2px solid rgba(168, 155, 196, 0.45);
       border-radius: 12px;
       padding: 0.72rem 1.5rem;
-      width: 100%;
-      max-width: 320px;
+      width: min(320px, 88%);
       font-family: 'Exo 2', system-ui, sans-serif;
       font-size: 18px;
       font-weight: 700;
@@ -167,11 +180,16 @@ function ensureStyles(): void {
       background: rgba(46, 26, 74, 0.92);
       cursor: pointer;
       box-sizing: border-box;
+      pointer-events: auto;
+      z-index: 21;
     }
     .mimu-auth-action:hover {
       border-color: #ffc857;
     }
     .mimu-auth-action.continue {
+      position: relative;
+      transform: none;
+      width: 100%;
       border-color: rgba(46, 213, 115, 0.55);
       background: rgba(20, 80, 50, 0.85);
       max-width: 360px;
@@ -196,54 +214,76 @@ function ensureStyles(): void {
       font-size: 0.74rem;
     }
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit,
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action {
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action.continue {
       min-height: 48px;
       font-size: 1rem;
       max-width: none;
+    }
+    .${SHELL_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action.mimu-auth-back {
+      min-height: 48px;
+      font-size: 1rem;
+      width: min(360px, 92%);
     }
   `;
   document.head.appendChild(style);
 }
 
-function positionAuthOverlay(root: HTMLElement, scene: Phaser.Scene): void {
+function gamePointToContainer(
+  gameX: number,
+  gameY: number,
+  canvasRect: DOMRect,
+  containerRect: DOMRect,
+): { left: number; top: number } {
+  return {
+    left: canvasRect.left - containerRect.left + (gameX / GAME_WIDTH) * canvasRect.width,
+    top: canvasRect.top - containerRect.top + (gameY / GAME_HEIGHT) * canvasRect.height,
+  };
+}
+
+function positionAuthUi(
+  shell: HTMLElement,
+  overlay: HTMLElement,
+  backBtn: HTMLElement,
+  scene: Phaser.Scene,
+): void {
   const container = document.getElementById('game-container');
   const canvas = scene.game.canvas;
   if (!container || !canvas) return;
 
   const mobile = isMobileTouchDevice();
-  root.classList.toggle('mimu-auth-overlay--mobile', mobile);
+  shell.classList.toggle('mimu-auth-overlay--mobile', mobile);
+  overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
 
   const containerRect = container.getBoundingClientRect();
   const canvasRect = canvas.getBoundingClientRect();
 
-  const panelLeft = (AUTH_PANEL.x / GAME_WIDTH) * canvasRect.width;
-  const panelTop = (AUTH_PANEL.y / GAME_HEIGHT) * canvasRect.height;
   const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
-  const panelHeight = (AUTH_PANEL.height / GAME_HEIGHT) * canvasRect.height;
-  const contentTop = (AUTH_PANEL.contentTop / GAME_HEIGHT) * canvasRect.height;
-  const contentBottom = panelTop + panelHeight;
+  const centerX = GAME_WIDTH / 2;
+  const formCenter = gamePointToContainer(centerX, AUTH_LAYOUT.formCenterY, canvasRect, containerRect);
+  const backCenter = gamePointToContainer(centerX, AUTH_LAYOUT.backY, canvasRect, containerRect);
 
-  const centerX = panelLeft + panelWidth / 2;
-  const centerY = contentTop + (contentBottom - contentTop) / 2;
-
-  root.style.left = `${canvasRect.left - containerRect.left + centerX}px`;
-  root.style.top = `${canvasRect.top - containerRect.top + centerY}px`;
-  root.style.width = mobile
+  overlay.style.left = `${formCenter.left}px`;
+  overlay.style.top = `${formCenter.top}px`;
+  overlay.style.width = mobile
     ? `${Math.min(panelWidth * 0.94, canvasRect.width * 0.92)}px`
     : `${Math.min(420, panelWidth * 0.88)}px`;
+
+  backBtn.style.left = `${backCenter.left}px`;
+  backBtn.style.top = `${backCenter.top}px`;
 }
 
 /** Remove auth HTML so it never blocks canvas clicks after leaving the account page. */
 export function destroyAuthFormOverlay(): void {
   document
-    .querySelectorAll(`.${OVERLAY_CLASS}, .${FORM_CLASS}, #${LEGACY_FORM_ID}`)
+    .querySelectorAll(`.${SHELL_CLASS}, .${OVERLAY_CLASS}, .${FORM_CLASS}, #${LEGACY_FORM_ID}`)
     .forEach((node) => {
       node.remove();
     });
   const active = document.activeElement;
   if (
     active instanceof HTMLElement &&
-    (active.closest(`.${OVERLAY_CLASS}`) ||
+    (active.closest(`.${SHELL_CLASS}`) ||
+      active.closest(`.${OVERLAY_CLASS}`) ||
       active.closest(`.${FORM_CLASS}`) ||
       active.closest(`#${LEGACY_FORM_ID}`))
   ) {
@@ -265,6 +305,9 @@ export function mountAuthForm(
   if (!container) {
     throw new Error('game-container not found');
   }
+
+  const shell = document.createElement('div');
+  shell.className = SHELL_CLASS;
 
   const overlay = document.createElement('div');
   overlay.className = OVERLAY_CLASS;
@@ -346,13 +389,14 @@ export function mountAuthForm(
 
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
-  backBtn.className = 'mimu-auth-action';
+  backBtn.className = 'mimu-auth-action mimu-auth-back';
   backBtn.textContent = '← BACK';
 
-  overlay.append(tabs, root, continueBtn, backBtn);
-  container.appendChild(overlay);
-  positionAuthOverlay(overlay, scene);
-  requestAnimationFrame(() => positionAuthOverlay(overlay, scene));
+  overlay.append(tabs, root, continueBtn);
+  shell.append(overlay, backBtn);
+  container.appendChild(shell);
+  positionAuthUi(shell, overlay, backBtn, scene);
+  requestAnimationFrame(() => positionAuthUi(shell, overlay, backBtn, scene));
 
   let mode: AuthFormMode = initialMode;
 
@@ -413,8 +457,8 @@ export function mountAuthForm(
   });
 
   const syncPosition = (): void => {
-    if (overlay.isConnected) {
-      positionAuthOverlay(overlay, scene);
+    if (shell.isConnected) {
+      positionAuthUi(shell, overlay, backBtn, scene);
     }
   };
   scene.scale.on('resize', syncPosition);
@@ -430,7 +474,7 @@ export function mountAuthForm(
     window.removeEventListener('resize', syncPosition);
     window.visualViewport?.removeEventListener('resize', syncPosition);
     window.visualViewport?.removeEventListener('scroll', syncPosition);
-    overlay.remove();
+    shell.remove();
   };
 
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, destroyForm);
