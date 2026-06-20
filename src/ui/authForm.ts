@@ -15,25 +15,24 @@ export interface AuthFormHandle {
 }
 
 const STYLE_ID = 'mimu-auth-form-styles';
+const FORM_ID = 'mimu-auth-form';
 
 function ensureStyles(): void {
   if (document.getElementById(STYLE_ID)) return;
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    #mimu-auth-form {
+    #${FORM_ID} {
       position: fixed;
       left: 50%;
-      top: clamp(240px, 42vh, 360px);
+      top: clamp(220px, 36vh, 320px);
       transform: translate(-50%, 0);
       width: min(92vw, 420px);
-      max-height: min(58vh, 420px);
-      overflow-y: auto;
-      z-index: 20;
+      z-index: 1000;
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
-      padding: 1rem 1.1rem 1.1rem;
+      padding: 1rem 1.1rem;
       border-radius: 14px;
       background: rgba(14, 6, 24, 0.94);
       border: 2px solid rgba(255, 200, 87, 0.35);
@@ -42,13 +41,13 @@ function ensureStyles(): void {
       color: #f5f0ff;
       pointer-events: auto;
     }
-    #mimu-auth-form label {
+    #${FORM_ID} label {
       font-size: 0.78rem;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: #a89bc4;
     }
-    #mimu-auth-form input {
+    #${FORM_ID} input {
       width: 100%;
       box-sizing: border-box;
       border-radius: 10px;
@@ -59,49 +58,44 @@ function ensureStyles(): void {
       font-size: 16px;
       outline: none;
     }
-    #mimu-auth-form input:focus {
+    #${FORM_ID} input:focus {
       border-color: #ffc857;
       box-shadow: 0 0 0 2px rgba(255, 200, 87, 0.25);
     }
-    #mimu-auth-form button[type='submit'] {
-      margin-top: 0.35rem;
-      border: none;
-      border-radius: 999px;
-      padding: 0.85rem 1rem;
-      font-size: 0.95rem;
-      font-weight: 700;
-      letter-spacing: 0.04em;
-      color: #140a24;
-      background: linear-gradient(180deg, #ffc857, #ff8c32);
-      cursor: pointer;
-    }
-    #mimu-auth-form button[type='submit']:disabled {
+    #${FORM_ID} input:disabled {
       opacity: 0.65;
-      cursor: wait;
     }
-    #mimu-auth-form .mimu-auth-error {
+    #${FORM_ID} .mimu-auth-error {
       min-height: 1.1rem;
       font-size: 0.82rem;
       color: #ff4757;
       text-align: center;
       font-weight: 600;
     }
-    #mimu-auth-form .mimu-auth-hint {
+    #${FORM_ID} .mimu-auth-hint {
       font-size: 0.78rem;
       color: #8a7aa8;
       text-align: center;
       line-height: 1.35;
+      margin: 0;
     }
   `;
   document.head.appendChild(style);
 }
 
-export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): AuthFormHandle {
+/** Remove any leftover auth overlay from the DOM (safe to call anytime). */
+export function destroyAuthFormOverlay(): void {
+  document.getElementById(FORM_ID)?.remove();
+}
+
+export function mountAuthForm(initialMode: AuthFormMode, onEnter?: () => void): AuthFormHandle {
+  destroyAuthFormOverlay();
   ensureStyles();
 
-  const root = document.createElement('form');
-  root.id = 'mimu-auth-form';
-  root.setAttribute('autocomplete', 'on');
+  const root = document.createElement('div');
+  root.id = FORM_ID;
+  root.setAttribute('role', 'group');
+  root.setAttribute('aria-label', 'Account sign in');
 
   const usernameWrap = document.createElement('div');
   const usernameLabel = document.createElement('label');
@@ -149,12 +143,8 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
   hintEl.className = 'mimu-auth-hint';
   hintEl.textContent = 'Create an account to save scores and bank coins after every run.';
 
-  const submitBtn = document.createElement('button');
-  submitBtn.type = 'submit';
-  submitBtn.textContent = initialMode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
-
-  root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
-  document.getElementById('game-container')?.appendChild(root);
+  root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl);
+  document.body.appendChild(root);
 
   let mode: AuthFormMode = initialMode;
 
@@ -169,7 +159,6 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
     passwordWrap.style.display = 'flex';
     passwordWrap.style.flexDirection = 'column';
     passwordWrap.style.gap = '0.35rem';
-    submitBtn.textContent = isRegister ? 'CREATE ACCOUNT' : 'LOG IN';
     passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
     hintEl.textContent = isRegister
       ? 'Your coin wallet is saved to this account after each run.'
@@ -178,10 +167,14 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
 
   syncMode();
 
-  root.addEventListener('submit', (event) => {
+  const handleEnter = (event: KeyboardEvent): void => {
+    if (event.key !== 'Enter') return;
     event.preventDefault();
-    onSubmit();
-  });
+    onEnter?.();
+  };
+  emailInput.addEventListener('keydown', handleEnter);
+  passwordInput.addEventListener('keydown', handleEnter);
+  usernameInput.addEventListener('keydown', handleEnter);
 
   return {
     getValues: () => ({
@@ -193,7 +186,6 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
       errorEl.textContent = message;
     },
     setLoading: (loading: boolean) => {
-      submitBtn.disabled = loading;
       emailInput.disabled = loading;
       passwordInput.disabled = loading;
       usernameInput.disabled = loading;
@@ -204,7 +196,7 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
       syncMode();
     },
     destroy: () => {
-      root.remove();
+      destroyAuthFormOverlay();
     },
   };
 }

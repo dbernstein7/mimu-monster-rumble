@@ -19,13 +19,14 @@ import {
   mountFullscreenButton,
   UI_FONTS,
 } from '../ui/theme';
-import { mountAuthForm, type AuthFormHandle } from '../ui/authForm';
+import { destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
   private mode: 'login' | 'register' = 'register';
   private authForm?: AuthFormHandle;
   private tabButtons: Phaser.GameObjects.Text[] = [];
+  private submitBtn?: ReturnType<typeof createStyledButton>;
 
   constructor() {
     super({ key: 'AuthScene' });
@@ -67,26 +68,64 @@ export default class AuthScene extends Phaser.Scene {
     this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
     this.authForm.setMode(this.mode);
 
+    this.submitBtn = createStyledButton(
+      this,
+      GAME_WIDTH / 2,
+      548,
+      this.submitLabel(),
+      () => void this.handleSubmit(),
+      320,
+      0xffc857,
+    );
+
     if (getCurrentUser()) {
-      createStyledButton(this, GAME_WIDTH / 2, 548, 'CONTINUE →', () => this.scene.start(this.nextScene), 320, 0x2ed573);
+      createStyledButton(
+        this,
+        GAME_WIDTH / 2,
+        610,
+        'CONTINUE →',
+        () => this.goToNextScene(),
+        320,
+        0x2ed573,
+      );
+      createStyledButton(this, GAME_WIDTH / 2, 672, '← BACK', () => this.leaveScene(), 220);
+    } else {
+      createStyledButton(this, GAME_WIDTH / 2, 610, '← BACK', () => this.leaveScene(), 220);
     }
 
-    createStyledButton(this, GAME_WIDTH / 2, 610, '← BACK', () => this.leaveScene(), 220);
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownAuthForm());
+    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.teardownAuthForm());
   }
 
   shutdown(): void {
-    this.authForm?.destroy();
-    this.authForm = undefined;
+    this.teardownAuthForm();
     this.tabButtons = [];
   }
 
+  private submitLabel(): string {
+    return this.mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
+  }
+
+  private teardownAuthForm(): void {
+    this.authForm?.destroy();
+    this.authForm = undefined;
+    destroyAuthFormOverlay();
+  }
+
   private leaveScene(): void {
+    this.teardownAuthForm();
     this.scene.start(this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene);
+  }
+
+  private goToNextScene(): void {
+    this.teardownAuthForm();
+    this.scene.start(this.nextScene);
   }
 
   private switchMode(mode: 'login' | 'register'): void {
     this.mode = mode;
     this.authForm?.setMode(mode);
+    this.submitBtn?.label.setText(this.submitLabel());
     this.tabButtons.forEach((btn) => {
       const active =
         (mode === 'register' && btn.text === 'REGISTER') || (mode === 'login' && btn.text === 'LOG IN');
@@ -130,7 +169,7 @@ export default class AuthScene extends Phaser.Scene {
       this.authForm.setLoading(true);
       try {
         await register(values.email, values.password, values.username);
-        this.scene.start(this.nextScene);
+        this.goToNextScene();
       } catch (err) {
         this.authForm.setError(formatAuthError(err));
       } finally {
@@ -148,7 +187,7 @@ export default class AuthScene extends Phaser.Scene {
     this.authForm.setLoading(true);
     try {
       await login(values.email, values.password);
-      this.scene.start(this.nextScene);
+      this.goToNextScene();
     } catch (err) {
       this.authForm.setError(formatAuthError(err));
     } finally {
