@@ -15,6 +15,7 @@ import {
   isMobileTouchDevice,
 } from './utils/device';
 import { bindGameAudioUnlock } from './utils/audioUnlock';
+import { initAuthListener } from './services/firebase';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
 
 bindMobileOrientationUi();
@@ -64,6 +65,7 @@ const config: Phaser.Types.Core.GameConfig = {
 };
 
 void loadHeadlineFont().then(() => {
+  initAuthListener();
   const game = new Phaser.Game(config);
   if (isMobileTouchDevice()) {
     game.sound.pauseOnBlur = false;

@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { fetchLeaderboard } from '../services/firebase';
+import { probeLiveLeaderboard } from '../services/leaderboardApi';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
   createGlowTitle,
@@ -43,6 +44,17 @@ export default class LeaderboardScene extends Phaser.Scene {
 
     fetchLeaderboard().then((entries) => {
       loading.destroy();
+      void probeLiveLeaderboard().then((live) => {
+        this.add
+          .text(
+            GAME_WIDTH / 2,
+            88,
+            live ? 'Live global scores' : 'Showing scores saved on this device',
+            subtitleStyle('13px'),
+          )
+          .setOrigin(0.5)
+          .setDepth(1);
+      });
       if (entries.length === 0) {
         this.add
           .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'No legends yet — claim the top spot!', subtitleStyle('18px'))

@@ -28,9 +28,19 @@ Open http://localhost:5173 in your browser.
 - **2 levels** — Haunted Carnival, Monster Pit
 - **Boss fights** at the end of each level
 - **6 power-ups** — Health, Speed, Shield, Damage, Coin Magnet, Bomb
-- **Leaderboard** — localStorage by default; Firebase when configured
+- **Leaderboard** — live global board via Vercel KV (like OtterKart); Firebase optional; local fallback for offline dev
 
-## Firebase Setup (optional)
+## Live leaderboard (recommended for production)
+
+Same pattern as **OtterKart** / **Shell Snag**: scores POST to `/api/leaderboard` and are stored in **Vercel KV** (Upstash Redis), so every browser/device sees the same board.
+
+1. In the [Vercel dashboard](https://vercel.com) → your **mimu-monster-rumble** project → **Storage** → create or link a **KV / Upstash Redis** database.
+2. Vercel adds `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically to the project.
+3. Redeploy. Game over screen should say **“Score saved to live leaderboard”** and the leaderboard page **“Live global scores”**.
+
+Guest players get a stable anonymous id on each device (`mimu:playerId` in localStorage), like OtterKart demo mode. Scores sync globally; usernames are per-device unless you register.
+
+## Firebase Setup (optional — cross-device accounts)
 
 1. Create a Firebase project with **Authentication** (Email/Password) and **Firestore**.
 2. Copy `.env.example` to `.env` and fill in your Firebase config values.
@@ -44,9 +54,18 @@ service cloud.firestore {
       allow read: if true;
       allow write: if request.auth != null;
     }
+    match /users/{userId} {
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.data.totalCoins >= resource.data.totalCoins;
+    }
   }
 }
 ```
+
+Registered accounts get a `users/{uid}` profile. **Coins earned each run are banked to `totalCoins` at game over** and follow the account across devices when Firebase is configured.
 
 Without Firebase, the game works fully with **guest login** and a **local leaderboard**.
 
@@ -65,7 +84,10 @@ Output goes to `dist/` (~55 MB with music and arena art). First load may take a 
 2. Sign in at [vercel.com](https://vercel.com) and **Import Project** from that repo.
 3. Vercel auto-detects Vite — build command `npm run build`, output directory `dist` (also set in `vercel.json`).
 4. Deploy. The game runs standalone in the browser; no server required beyond static hosting.
-5. **Optional:** In Vercel → Project → Settings → Environment Variables, add the `VITE_FIREBASE_*` values from `.env.example` for cloud auth and leaderboard. Without them, guest login and local leaderboard work as-is.
+5. **Optional:** In Vercel → Project → Settings → Environment Variables:
+   - Link **KV** storage (see Live leaderboard above) for global scores — **recommended**
+   - Or add the `VITE_FIREBASE_*` values from `.env.example` for email login + Firestore
+6. Without KV or Firebase, guest login and a **per-browser** local leaderboard still work for testing.
 
 ## Push to GitHub
 

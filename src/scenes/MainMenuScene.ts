@@ -1,5 +1,12 @@
 import Phaser from 'phaser';
-import { getCurrentUser, logout, guestLogin } from '../services/firebase';
+import {
+  getCurrentUser,
+  logout,
+  isFirebaseEnabled,
+  isSignedInAccount,
+  waitForAuthReady,
+} from '../services/firebase';
+import { loadUserProfile } from '../services/userProfile';
 import { InputManager } from '../input/InputManager';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
@@ -8,6 +15,7 @@ import {
   createImageMenuButton,
   mountFullscreenButton,
   subtitleStyle,
+  formatScore,
   UI_FONTS,
   type MenuButtonHighlight,
 } from '../ui/theme';
@@ -182,11 +190,11 @@ export default class MainMenuScene extends Phaser.Scene {
         authButtonY,
         SIGN_IN_BUTTON_TEXTURE_KEY,
         menuButtonWidth,
-        () => this.scene.start('AuthScene', { next: 'MainMenuScene' }),
+        () => this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'register' }),
       );
     } else {
-      this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN', () => {
-        this.scene.start('AuthScene', { next: 'MainMenuScene' });
+      this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN / REGISTER', () => {
+        this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'register' });
       });
     }
 
@@ -203,7 +211,20 @@ export default class MainMenuScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       this.menuUi.add(username);
-      footerY = usernameY + 52;
+      void waitForAuthReady().then(async () => {
+        const profile = await loadUserProfile();
+        if (!profile || !this.scene.isActive()) return;
+        const wallet = this.add
+          .text(GAME_WIDTH / 2, usernameY + 22, `◎ ${formatScore(profile.totalCoins)} banked coins`, {
+            fontFamily: UI_FONTS.body,
+            fontSize: '14px',
+            color: '#ffd166',
+            fontStyle: 'bold',
+          })
+          .setOrigin(0.5);
+        this.menuUi.add(wallet);
+      });
+      footerY = usernameY + 74;
     }
 
     if (!isMobileTouchDevice()) {
@@ -291,11 +312,18 @@ export default class MainMenuScene extends Phaser.Scene {
 
   private startGame(): void {
     unlockMobileAudio(this.game);
-    resetRunState(this.registry);
+
+    if (isFirebaseEnabled() && !isSignedInAccount()) {
+      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'register' });
+      return;
+    }
 
     if (!getCurrentUser()) {
-      guestLogin('Player');
+      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'register' });
+      return;
     }
+
+    resetRunState(this.registry);
 
     this.scene.start('CharacterSelectScene', FRESH_RUN_SELECT_DATA);
   }

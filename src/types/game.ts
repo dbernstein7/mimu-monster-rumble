@@ -68,6 +68,13 @@ export interface LeaderboardEntry {
   timestamp: number;
 }
 
+export interface UserProfile {
+  userId: string;
+  username: string;
+  totalCoins: number;
+  updatedAt: number;
+}
+
 export interface GameSessionData {
   characterId: CharacterId;
   levelIndex: number;
