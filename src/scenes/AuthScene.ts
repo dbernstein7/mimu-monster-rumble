@@ -76,11 +76,8 @@ export default class AuthScene extends Phaser.Scene {
       this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
       this.syncTabColors();
 
-      this.time.delayedCall(0, () => {
-        if (!this.scene.isActive()) return;
-        this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
-        this.authForm.setMode(this.mode);
-      });
+      this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
+      this.authForm.setMode(this.mode);
     }
 
     const signedIn = !this.fromLogout && !!getCurrentUser();
@@ -115,10 +112,7 @@ export default class AuthScene extends Phaser.Scene {
     if (this.switchingScene) return;
     this.switchingScene = true;
     this.teardownAuthForm();
-    this.time.delayedCall(0, () => {
-      if (!this.scene.isActive()) return;
-      this.scene.start(sceneKey);
-    });
+    this.scene.start(sceneKey);
   }
 
   private leaveScene(): void {
