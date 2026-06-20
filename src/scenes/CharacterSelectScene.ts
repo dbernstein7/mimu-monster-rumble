@@ -11,7 +11,16 @@ import {
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
 import { unlockMobileAudio } from '../utils/audioUnlock';
-import { returnToMainMenu } from '../utils/sceneNav';
+import {
+  destroyCharacterSelectOverlay,
+  mountCharacterSelectBackButton,
+} from '../ui/characterSelectOverlay';
+import {
+  focusGameSurface,
+  MAIN_MENU_INPUT_GUARD_MS,
+  MAIN_MENU_SCENE_KEY,
+} from '../utils/sceneNav';
+import { resetRunState } from '../utils/runState';
 import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
   applyRoundedCardMask,
@@ -25,9 +34,9 @@ import {
 } from '../assets/characterSelectAssets';
 
 const CARD_LAYOUT = {
-  rowY: [243, 531] as const,
+  rowY: [243, 500] as const,
   maxWidth: 624,
-  maxHeight: 276,
+  maxHeight: 260,
   columnGap: 18,
   hitPadding: 12,
 };
@@ -40,6 +49,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   private targetLevelIndex = 0;
   private continueRun = false;
   private chooseMimuAudio?: ChooseMimuAudioHandle;
+  private leaving = false;
 
   constructor() {
     super({ key: 'CharacterSelectScene' });
@@ -48,6 +58,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   init(data: { levelIndex?: number; continueRun?: boolean } = {}): void {
     this.continueRun = data.continueRun === true;
     this.targetLevelIndex = this.continueRun ? (data.levelIndex ?? 1) : 0;
+    this.leaving = false;
   }
 
   create(): void {
@@ -148,9 +159,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
       }
     });
 
-    if (!this.continueRun) {
-      this.createBackButton();
-    }
+    mountCharacterSelectBackButton(() => this.goBackToMainMenu());
 
     this.refreshHighlight();
 
@@ -162,6 +171,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   shutdown(): void {
     stopChooseMimuVideo(this.chooseMimuAudio);
     this.chooseMimuAudio = undefined;
+    destroyCharacterSelectOverlay();
   }
 
   update(): void {
@@ -190,37 +200,27 @@ export default class CharacterSelectScene extends Phaser.Scene {
     if (this.inputManager.isConfirmJustPressed()) {
       this.startWithCharacter(CHARACTERS[this.selectedIndex].id as CharacterId);
     }
-    if (!this.continueRun && (this.inputManager.isPauseJustPressed() || this.inputManager.isPauseQuitJustPressed())) {
+    if (this.inputManager.isPauseJustPressed() || this.inputManager.isPauseQuitJustPressed()) {
       this.goBackToMainMenu();
     }
   }
 
-  private createBackButton(): void {
-    const x = GAME_WIDTH / 2;
-    const y = GAME_HEIGHT - 44;
-    const label = this.add
-      .text(x, y, '← BACK', {
-        fontFamily: UI_FONTS.body,
-        fontSize: '18px',
-        color: '#a89bc4',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setDepth(100);
-
-    const hit = this.add
-      .rectangle(x, y, 240, 52, 0x000000, 0.001)
-      .setDepth(100)
-      .setInteractive({ useHandCursor: true });
-    hit.on('pointerover', () => label.setColor('#ffc857'));
-    hit.on('pointerout', () => label.setColor('#a89bc4'));
-    hit.on('pointerdown', () => this.goBackToMainMenu());
-  }
-
   private goBackToMainMenu(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+
     this.stopChooseMimuAudio();
+    destroyCharacterSelectOverlay();
+    focusGameSurface();
     this.input.resetPointers();
-    returnToMainMenu(this.game);
+
+    if (!this.continueRun) {
+      resetRunState(this.registry);
+    }
+
+    this.scene.start(MAIN_MENU_SCENE_KEY, {
+      menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
+    });
   }
 
   private refreshHighlight(): void {
@@ -258,8 +258,11 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   private startWithCharacter(id: CharacterId): void {
+    if (this.leaving) return;
+
     unlockMobileAudio(this.game);
     this.stopChooseMimuAudio();
+    destroyCharacterSelectOverlay();
 
     if (!this.continueRun) {
       this.registry.remove('runScore');
