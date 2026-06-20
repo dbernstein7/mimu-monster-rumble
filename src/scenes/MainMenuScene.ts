@@ -30,6 +30,7 @@ import {
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
+import { isMobileTouchDevice } from '../utils/device';
 import {
   hasIntroSfx,
   INTRO_SFX_GAP_MS,
@@ -205,18 +206,25 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     const fullscreenBtn = mountFullscreenButton(this, GAME_WIDTH / 2, fullscreenY);
-    fullscreenBtn?.setAlpha(MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
+    fullscreenBtn?.setAlpha(isMobileTouchDevice() ? 1 : MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
+    if (fullscreenBtn && isMobileTouchDevice()) {
+      fullscreenBtn.setScale(1.15);
+    }
     if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
 
     const footerHint = this.add
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 36,
-        'Click FULLSCREEN for best view  ·  Space / A to confirm  ·  Mouse + Keyboard + Controller',
+        isMobileTouchDevice()
+          ? 'Tap FULLSCREEN for the best mobile view  ·  Rotate to landscape  ·  Touch controls in-game'
+          : 'Click FULLSCREEN for best view  ·  Space / A to confirm  ·  Mouse + Keyboard + Controller',
         {
           fontFamily: UI_FONTS.body,
-          fontSize: '13px',
+          fontSize: isMobileTouchDevice() ? '12px' : '13px',
           color: '#6e5f8a',
+          align: 'center',
+          wordWrap: { width: GAME_WIDTH - 48 },
         },
       )
       .setOrigin(0.5);

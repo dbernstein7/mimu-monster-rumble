@@ -107,10 +107,10 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawArena(level);
     createScreenCornerVignette(this);
-    const fullscreenPos = isMobileTouchDevice()
+    const fsPos = isMobileTouchDevice()
       ? { x: GAME_WIDTH - 14 - 66, y: 14 + 17 }
       : getFullscreenButtonBottomRightPosition();
-    mountFullscreenButton(this, fullscreenPos.x, fullscreenPos.y);
+    mountFullscreenButton(this, fsPos.x, fsPos.y);
 
     this.enemies = this.add.group();
     this.coins = this.add.group();

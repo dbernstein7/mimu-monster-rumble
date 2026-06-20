@@ -52,6 +52,19 @@
       #game-container canvas {
         display: block;
       }
+      body.mobile-immersive {
+        background: #1a0a2e;
+      }
+      body.mobile-immersive #game-container,
+      body.mobile-immersive #boot-loader,
+      body.mobile-immersive #rotate-prompt {
+        position: fixed !important;
+        inset: 0 !important;
+        width: 100% !important;
+        height: 100% !important;
+        max-height: 100dvh;
+        max-height: -webkit-fill-available;
+      }
       #boot-loader {
         position: fixed;
         top: 0;

@@ -8,7 +8,7 @@ import GameScene from './scenes/GameScene';
 import GameOverScene from './scenes/GameOverScene';
 import LeaderboardScene from './scenes/LeaderboardScene';
 import { loadHeadlineFont } from './assets/uiFonts';
-import { bindMobileOrientationUi, bindMobileViewport } from './utils/device';
+import { bindMobileOrientationUi, bindMobileViewport, getMobileScaleMode } from './utils/device';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
 
 bindMobileOrientationUi();
@@ -20,7 +20,7 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: 'game-container',
   backgroundColor: '#1a0a2e',
   scale: {
-    mode: Phaser.Scale.FIT,
+    mode: getMobileScaleMode(),
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -36,7 +36,7 @@ const config: Phaser.Types.Core.GameConfig = {
     gamepad: true,
     keyboard: true,
     touch: true,
-    activePointers: 3,
+    activePointers: 4,
   },
   physics: {
     default: 'arcade',
@@ -71,6 +71,7 @@ void loadHeadlineFont().then(() => {
   function onDisplayChange(): void {
     syncLetterboxBackground();
     bindMobileViewport(game);
+    game.scale.refresh();
   }
 
   game.scale.on('enterfullscreen', onDisplayChange);
