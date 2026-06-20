@@ -40,11 +40,14 @@ Same pattern as **OtterKart** / **Shell Snag**: scores POST to `/api/leaderboard
 
 Guest players get a stable anonymous id on each device (`mimu:playerId` in localStorage), like OtterKart demo mode. Scores sync globally; usernames are per-device unless you register.
 
-## Firebase Setup (optional — cross-device accounts)
+## Firebase Setup (required for accounts)
 
-1. Create a Firebase project with **Authentication** (Email/Password) and **Firestore**.
-2. Copy `.env.example` to `.env` and fill in your Firebase config values.
-3. Add Firestore security rules:
+Accounts, coin wallets, and cross-device login use **Firebase Authentication + Firestore**. This is not a local-only game — players need real cloud accounts.
+
+1. Create a Firebase project with **Authentication → Email/Password enabled** and **Firestore**.
+2. Copy `.env.example` to `.env` for local dev and add the same `VITE_FIREBASE_*` values in **Vercel → Project → Environment Variables** (Production + Preview).
+3. **Redeploy** after adding env vars (Vite bakes them in at build time).
+4. Add Firestore security rules:
 
 ```
 rules_version = '2';
@@ -65,9 +68,9 @@ service cloud.firestore {
 }
 ```
 
-Registered accounts get a `users/{uid}` profile. **Coins earned each run are banked to `totalCoins` at game over** and follow the account across devices when Firebase is configured.
+Registered accounts get a `users/{uid}` profile. **Coins earned each run are banked to `totalCoins` at game over** and sync across devices.
 
-Without Firebase, the game works fully with **guest login** and a **local leaderboard**.
+Without Firebase env vars, sign-in is disabled and the auth screen shows a setup message.
 
 ## Build for Production
 

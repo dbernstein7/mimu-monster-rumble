@@ -6,6 +6,8 @@ import {
   signOut,
   updateProfile,
   onAuthStateChanged,
+  setPersistence,
+  browserLocalPersistence,
   type Auth,
   type User,
 } from 'firebase/auth';
@@ -26,16 +28,10 @@ import { fetchLeaderboardFromApi, submitScoreToApi } from './leaderboardApi';
 export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
 
 const LOCAL_KEY = 'mimu_leaderboard';
-const USER_KEY = 'mimu_user';
-const LOCAL_ACCOUNTS_KEY = 'mimu_local_accounts';
 const PLAYER_ID_KEY = 'mimu:playerId';
 
-interface LocalAccountRecord {
-  userId: string;
-  email: string;
-  password: string;
-  username: string;
-}
+const CLOUD_AUTH_REQUIRED_MSG =
+  'Cloud accounts are not configured on this server. Add VITE_FIREBASE_* env vars on Vercel and redeploy.';
 
 function getFirebaseConfig() {
   const apiKey = import.meta.env.VITE_FIREBASE_API_KEY;
@@ -54,9 +50,14 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
 let authReadyPromise: Promise<void> | null = null;
+let persistencePromise: Promise<void> | null = null;
 
 export function isFirebaseEnabled(): boolean {
   return getFirebaseConfig() !== null;
+}
+
+export function getCloudAuthRequiredMessage(): string {
+  return CLOUD_AUTH_REQUIRED_MSG;
 }
 
 export function getDbInstance(): Firestore | null {
@@ -80,15 +81,22 @@ function initFirebase(): boolean {
     app = initializeApp(config);
     auth = getAuth(app);
     db = getFirestore(app);
+    persistencePromise = setPersistence(auth, browserLocalPersistence).catch(() => undefined);
   }
   return true;
+}
+
+function requireCloudAuth(): Auth {
+  if (!initFirebase() || !auth) {
+    throw new Error(CLOUD_AUTH_REQUIRED_MSG);
+  }
+  return auth;
 }
 
 export function initAuthListener(): void {
   if (!initFirebase() || !auth) return;
   onAuthStateChanged(auth, (user) => {
     if (user) {
-      saveLocalUser(user.displayName ?? getLocalUser()?.username ?? 'Player', user.uid);
       void import('./userProfile').then(({ loadUserProfile }) => loadUserProfile());
     } else {
       void import('./userProfile').then(({ clearProfileCache }) => clearProfileCache());
@@ -101,19 +109,22 @@ export function waitForAuthReady(): Promise<void> {
   if (auth.currentUser) return Promise.resolve();
 
   if (!authReadyPromise) {
-    authReadyPromise = new Promise((resolve) => {
-      let settled = false;
-      const finish = (): void => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      const unsub = onAuthStateChanged(auth!, () => {
-        unsub();
-        finish();
-      });
-      window.setTimeout(finish, 2500);
-    });
+    authReadyPromise = Promise.all([
+      persistencePromise ?? Promise.resolve(),
+      new Promise<void>((resolve) => {
+        let settled = false;
+        const finish = (): void => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        const unsub = onAuthStateChanged(auth!, () => {
+          unsub();
+          finish();
+        });
+        window.setTimeout(finish, 2500);
+      }),
+    ]).then(() => undefined);
   }
 
   return authReadyPromise;
@@ -144,40 +155,6 @@ function saveLocalLeaderboard(entries: LeaderboardEntry[]): void {
   localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, 50)));
 }
 
-export function getLocalUser(): { username: string; userId: string } | null {
-  try {
-    const raw = localStorage.getItem(USER_KEY);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveLocalUser(username: string, userId: string): void {
-  localStorage.setItem(USER_KEY, JSON.stringify({ username, userId }));
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-function loadLocalAccounts(): LocalAccountRecord[] {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_ACCOUNTS_KEY) ?? '[]');
-  } catch {
-    return [];
-  }
-}
-
-function saveLocalAccounts(accounts: LocalAccountRecord[]): void {
-  localStorage.setItem(LOCAL_ACCOUNTS_KEY, JSON.stringify(accounts));
-}
-
-function findLocalAccount(email: string): LocalAccountRecord | undefined {
-  const normalized = normalizeEmail(email);
-  return loadLocalAccounts().find((account) => account.email === normalized);
-}
-
 export function formatAuthError(err: unknown): string {
   if (err instanceof FirebaseError) {
     switch (err.code) {
@@ -193,20 +170,18 @@ export function formatAuthError(err: unknown): string {
         return 'Password must be at least 6 characters.';
       case 'auth/too-many-requests':
         return 'Too many attempts. Wait a moment and try again.';
+      case 'auth/operation-not-allowed':
+        return 'Email/password sign-in is disabled in Firebase. Enable it in the Firebase console.';
       default:
         break;
     }
   }
 
   if (err instanceof Error) {
-    return err.message.replace(/^Firebase:\s*/i, '').slice(0, 90);
+    return err.message.replace(/^Firebase:\s*/i, '').slice(0, 120);
   }
 
   return 'Something went wrong. Try again.';
-}
-
-export function clearLocalUser(): void {
-  localStorage.removeItem(USER_KEY);
 }
 
 export async function register(
@@ -214,60 +189,30 @@ export async function register(
   password: string,
   username: string,
 ): Promise<{ userId: string; username: string }> {
-  if (initFirebase() && auth) {
-    const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
-    await updateProfile(cred.user, { displayName: username });
-    saveLocalUser(username, cred.user.uid);
-    const { ensureUserProfile } = await import('./userProfile');
-    await ensureUserProfile(cred.user.uid, username);
-    return { userId: cred.user.uid, username };
-  }
-
-  const normalizedEmail = normalizeEmail(email);
-  if (findLocalAccount(normalizedEmail)) {
-    throw new Error('That email is already registered. Try logging in.');
-  }
-
-  const userId = getOrCreatePlayerId();
-  saveLocalAccounts([
-    ...loadLocalAccounts(),
-    { userId, email: normalizedEmail, password, username },
-  ]);
-  saveLocalUser(username, userId);
+  const authInstance = requireCloudAuth();
+  const cred = await createUserWithEmailAndPassword(authInstance, email.trim(), password);
+  await updateProfile(cred.user, { displayName: username.trim() });
   const { ensureUserProfile } = await import('./userProfile');
-  await ensureUserProfile(userId, username);
-  return { userId, username };
+  await ensureUserProfile(cred.user.uid, username);
+  return { userId: cred.user.uid, username: username.trim() };
 }
 
 export async function login(
   email: string,
   password: string,
 ): Promise<{ userId: string; username: string }> {
-  if (initFirebase() && auth) {
-    const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
-    const username = cred.user.displayName ?? email.split('@')[0];
-    saveLocalUser(username, cred.user.uid);
-    const { loadUserProfile } = await import('./userProfile');
-    await loadUserProfile();
-    return { userId: cred.user.uid, username };
-  }
-
-  const account = findLocalAccount(email);
-  if (!account || account.password !== password) {
-    throw new Error('Invalid email or password.');
-  }
-
-  saveLocalUser(account.username, account.userId);
+  const authInstance = requireCloudAuth();
+  const cred = await signInWithEmailAndPassword(authInstance, email.trim(), password);
+  const username = cred.user.displayName?.trim() || email.split('@')[0] || 'Player';
   const { loadUserProfile } = await import('./userProfile');
   await loadUserProfile();
-  return { userId: account.userId, username: account.username };
+  return { userId: cred.user.uid, username };
 }
 
 export async function logout(): Promise<void> {
   if (initFirebase() && auth) {
     await signOut(auth);
   }
-  clearLocalUser();
   const { clearProfileCache } = await import('./userProfile');
   clearProfileCache();
 }
@@ -332,10 +277,10 @@ export function getCurrentUser(): { userId: string; username: string } | null {
   if (initFirebase() && auth?.currentUser) {
     return {
       userId: auth.currentUser.uid,
-      username: auth.currentUser.displayName ?? getLocalUser()?.username ?? 'Player',
+      username: auth.currentUser.displayName?.trim() || 'Player',
     };
   }
-  return getLocalUser();
+  return null;
 }
 
 export async function getCurrentUserAsync(): Promise<{ userId: string; username: string } | null> {
@@ -343,9 +288,7 @@ export async function getCurrentUserAsync(): Promise<{ userId: string; username:
   return getCurrentUser();
 }
 
-export function guestLogin(username: string): { userId: string; username: string } {
-  const userId = getOrCreatePlayerId();
-  saveLocalUser(username, userId);
-  void import('./userProfile').then(({ ensureUserProfile }) => ensureUserProfile(userId, username));
-  return { userId, username };
+/** Stable anonymous id for leaderboard entries when not registered. */
+export function getGuestPlayerId(): string {
+  return getOrCreatePlayerId();
 }

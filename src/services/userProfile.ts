@@ -178,24 +178,11 @@ export async function bankRunCoins(coinsEarned: number): Promise<CoinBankResult>
       });
       return { banked: earned, totalCoins, target: 'firebase' };
     } catch {
-      // Fall through to local wallet.
+      return { banked: 0, totalCoins: cachedProfile?.totalCoins ?? 0, target: 'firebase' };
     }
   }
 
-  const existing = readLocalProfile(user.userId) ?? {
-    userId: user.userId,
-    username: user.username,
-    totalCoins: 0,
-    updatedAt: Date.now(),
-  };
-  const totalCoins = existing.totalCoins + earned;
-  cacheProfile({
-    userId: user.userId,
-    username: user.username,
-    totalCoins,
-    updatedAt: Date.now(),
-  });
-  return { banked: earned, totalCoins, target: 'local' };
+  return { banked: 0, totalCoins: 0, target: 'local' };
 }
 
 export function isCloudAccountSession(): boolean {

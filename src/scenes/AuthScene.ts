@@ -5,6 +5,7 @@ import {
   isFirebaseEnabled,
   formatAuthError,
   getCurrentUser,
+  getCloudAuthRequiredMessage,
 } from '../services/firebase';
 import {
   validateLoginInput,
@@ -44,29 +45,33 @@ export default class AuthScene extends Phaser.Scene {
     drawPanel(panel, GAME_WIDTH / 2 - 320, 80, 640, 520);
 
     createGlowTitle(this, GAME_WIDTH / 2, 130, 'ACCOUNT', '32px');
+
+    const cloudReady = isFirebaseEnabled();
     this.add
       .text(
         GAME_WIDTH / 2,
         168,
-        isFirebaseEnabled()
-          ? 'Sign up or log in to save scores and bank coins'
-          : 'Create a local account (add Firebase on Vercel for cloud sync)',
+        cloudReady
+          ? 'Create an account or log in — your wallet and scores sync in the cloud'
+          : getCloudAuthRequiredMessage(),
         {
           fontFamily: UI_FONTS.body,
           fontSize: '13px',
-          color: '#8a7aa8',
+          color: cloudReady ? '#8a7aa8' : '#ff4757',
           align: 'center',
           wordWrap: { width: 520 },
         },
       )
       .setOrigin(0.5);
 
-    this.createTabButton(GAME_WIDTH / 2 - 90, 210, 'REGISTER', () => this.switchMode('register'));
-    this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
-    this.syncTabColors();
+    if (cloudReady) {
+      this.createTabButton(GAME_WIDTH / 2 - 90, 210, 'REGISTER', () => this.switchMode('register'));
+      this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
+      this.syncTabColors();
 
-    this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
-    this.authForm.setMode(this.mode);
+      this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
+      this.authForm.setMode(this.mode);
+    }
 
     const signedIn = !!getCurrentUser();
     if (signedIn) {
@@ -140,7 +145,7 @@ export default class AuthScene extends Phaser.Scene {
   }
 
   private async handleSubmit(): Promise<void> {
-    if (!this.authForm) return;
+    if (!this.authForm || !isFirebaseEnabled()) return;
 
     const values = this.authForm.getValues();
     this.authForm.setError('');

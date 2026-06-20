@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import {
   getCurrentUser,
   logout,
-  isFirebaseEnabled,
   isSignedInAccount,
   waitForAuthReady,
 } from '../services/firebase';
@@ -313,12 +312,7 @@ export default class MainMenuScene extends Phaser.Scene {
   private startGame(): void {
     unlockMobileAudio(this.game);
 
-    if (isFirebaseEnabled() && !isSignedInAccount()) {
-      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'login' });
-      return;
-    }
-
-    if (!getCurrentUser()) {
+    if (!isSignedInAccount() || !getCurrentUser()) {
       this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'login' });
       return;
     }
