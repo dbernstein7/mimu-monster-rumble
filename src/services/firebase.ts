@@ -23,7 +23,7 @@ import {
   limit,
   type Firestore,
 } from 'firebase/firestore';
-import type { LeaderboardEntry } from '../types/game';
+import type { CoinLeaderboardEntry, LeaderboardEntry } from '../types/game';
 import { fetchLeaderboardFromApi, submitScoreToApi } from './leaderboardApi';
 
 export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
@@ -290,6 +290,46 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   }
 
   return getLocalLeaderboard();
+}
+
+export async function syncCoinLeaderboardEntry(profile: CoinLeaderboardEntry): Promise<void> {
+  if (!initFirebase() || !db || !auth?.currentUser) return;
+  if (auth.currentUser.uid !== profile.userId) return;
+
+  try {
+    await setDoc(doc(db, 'coinLeaderboard', profile.userId), {
+      userId: profile.userId,
+      username: profile.username.slice(0, 16),
+      totalCoins: Math.max(0, Math.floor(profile.totalCoins)),
+      updatedAt: profile.updatedAt || Date.now(),
+    });
+  } catch {
+    // Best-effort sync for the public coin board.
+  }
+}
+
+export async function fetchCoinLeaderboard(): Promise<CoinLeaderboardEntry[]> {
+  if (initFirebase() && db) {
+    try {
+      const q = query(collection(db, 'coinLeaderboard'), orderBy('totalCoins', 'desc'), limit(50));
+      const snap = await getDocs(q);
+      const entries = snap.docs.map((d) => {
+        const data = d.data();
+        return {
+          userId: String(data.userId ?? d.id),
+          username: String(data.username ?? 'Player').slice(0, 16),
+          totalCoins: Math.max(0, Math.floor(Number(data.totalCoins) || 0)),
+          updatedAt: Number(data.updatedAt) || Date.now(),
+        } satisfies CoinLeaderboardEntry;
+      });
+      if (entries.length > 0) return entries;
+    } catch {
+      // Fall through to local wallets.
+    }
+  }
+
+  const { getLocalCoinLeaderboardEntries } = await import('./userProfile');
+  return getLocalCoinLeaderboardEntries();
 }
 
 export function getCurrentUser(): { userId: string; username: string } | null {

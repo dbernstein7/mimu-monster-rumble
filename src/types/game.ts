@@ -75,6 +75,13 @@ export interface UserProfile {
   updatedAt: number;
 }
 
+export interface CoinLeaderboardEntry {
+  userId: string;
+  username: string;
+  totalCoins: number;
+  updatedAt: number;
+}
+
 export interface GameSessionData {
   characterId: CharacterId;
   levelIndex: number;

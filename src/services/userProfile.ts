@@ -6,7 +6,7 @@ import {
   increment,
   type Firestore,
 } from 'firebase/firestore';
-import type { UserProfile } from '../types/game';
+import type { UserProfile, CoinLeaderboardEntry } from '../types/game';
 import { getAuthInstance, getDbInstance, getCurrentUser } from './firebase';
 
 const PROFILE_LOCAL_KEY = 'mimu_profile';
@@ -56,6 +56,14 @@ function cacheProfile(profile: UserProfile): UserProfile {
   const record = loadLocalProfileRecord();
   record[profile.userId] = profile;
   saveLocalProfileRecord(record);
+  void import('./firebase').then(({ syncCoinLeaderboardEntry }) =>
+    syncCoinLeaderboardEntry({
+      userId: profile.userId,
+      username: profile.username,
+      totalCoins: profile.totalCoins,
+      updatedAt: profile.updatedAt,
+    }),
+  );
   return profile;
 }
 
@@ -219,4 +227,17 @@ export function validateLoginInput(email: string, password: string): string | nu
 
 export function clearProfileCache(): void {
   cachedProfile = null;
+}
+
+export function getLocalCoinLeaderboardEntries(): CoinLeaderboardEntry[] {
+  return Object.values(loadLocalProfileRecord())
+    .filter((profile) => profile.totalCoins > 0)
+    .sort((a, b) => b.totalCoins - a.totalCoins || b.updatedAt - a.updatedAt)
+    .slice(0, 50)
+    .map((profile) => ({
+      userId: profile.userId,
+      username: profile.username,
+      totalCoins: profile.totalCoins,
+      updatedAt: profile.updatedAt,
+    }));
 }
