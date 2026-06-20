@@ -23,10 +23,9 @@ import { destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../u
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
-  private mode: 'login' | 'register' = 'register';
+  private mode: 'login' | 'register' = 'login';
   private authForm?: AuthFormHandle;
   private tabButtons: Phaser.GameObjects.Text[] = [];
-  private submitBtn?: ReturnType<typeof createStyledButton>;
 
   constructor() {
     super({ key: 'AuthScene' });
@@ -34,7 +33,7 @@ export default class AuthScene extends Phaser.Scene {
 
   init(data: { next?: string; mode?: 'login' | 'register' }): void {
     this.nextScene = data.next ?? 'MainMenuScene';
-    this.mode = data.mode ?? 'register';
+    this.mode = data.mode ?? 'login';
   }
 
   create(): void {
@@ -64,21 +63,13 @@ export default class AuthScene extends Phaser.Scene {
 
     this.createTabButton(GAME_WIDTH / 2 - 90, 210, 'REGISTER', () => this.switchMode('register'));
     this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
+    this.syncTabColors();
 
     this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
     this.authForm.setMode(this.mode);
 
-    this.submitBtn = createStyledButton(
-      this,
-      GAME_WIDTH / 2,
-      548,
-      this.submitLabel(),
-      () => void this.handleSubmit(),
-      320,
-      0xffc857,
-    );
-
-    if (getCurrentUser()) {
+    const signedIn = !!getCurrentUser();
+    if (signedIn) {
       createStyledButton(
         this,
         GAME_WIDTH / 2,
@@ -88,10 +79,9 @@ export default class AuthScene extends Phaser.Scene {
         320,
         0x2ed573,
       );
-      createStyledButton(this, GAME_WIDTH / 2, 672, '← BACK', () => this.leaveScene(), 220);
-    } else {
-      createStyledButton(this, GAME_WIDTH / 2, 610, '← BACK', () => this.leaveScene(), 220);
     }
+
+    createStyledButton(this, GAME_WIDTH / 2, signedIn ? 672 : 610, '← BACK', () => this.leaveScene(), 220);
 
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownAuthForm());
     this.events.once(Phaser.Scenes.Events.DESTROY, () => this.teardownAuthForm());
@@ -100,10 +90,6 @@ export default class AuthScene extends Phaser.Scene {
   shutdown(): void {
     this.teardownAuthForm();
     this.tabButtons = [];
-  }
-
-  private submitLabel(): string {
-    return this.mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
   }
 
   private teardownAuthForm(): void {
@@ -125,10 +111,14 @@ export default class AuthScene extends Phaser.Scene {
   private switchMode(mode: 'login' | 'register'): void {
     this.mode = mode;
     this.authForm?.setMode(mode);
-    this.submitBtn?.label.setText(this.submitLabel());
+    this.syncTabColors();
+  }
+
+  private syncTabColors(): void {
     this.tabButtons.forEach((btn) => {
       const active =
-        (mode === 'register' && btn.text === 'REGISTER') || (mode === 'login' && btn.text === 'LOG IN');
+        (this.mode === 'register' && btn.text === 'REGISTER') ||
+        (this.mode === 'login' && btn.text === 'LOG IN');
       btn.setColor(active ? '#ffc857' : '#a89bc4');
     });
   }
@@ -138,18 +128,14 @@ export default class AuthScene extends Phaser.Scene {
       .text(x, y, label, {
         fontFamily: UI_FONTS.body,
         fontSize: '15px',
-        color: label === 'REGISTER' ? '#ffc857' : '#a89bc4',
+        color: label === 'LOG IN' ? '#ffc857' : '#a89bc4',
         fontStyle: 'bold',
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true });
     btn.on('pointerdown', onClick);
     btn.on('pointerover', () => btn.setColor('#ffc857'));
-    btn.on('pointerout', () => {
-      const active =
-        (this.mode === 'register' && label === 'REGISTER') || (this.mode === 'login' && label === 'LOG IN');
-      btn.setColor(active ? '#ffc857' : '#a89bc4');
-    });
+    btn.on('pointerout', () => this.syncTabColors());
     this.tabButtons.push(btn);
   }
 
@@ -171,7 +157,11 @@ export default class AuthScene extends Phaser.Scene {
         await register(values.email, values.password, values.username);
         this.goToNextScene();
       } catch (err) {
-        this.authForm.setError(formatAuthError(err));
+        const message = formatAuthError(err);
+        this.authForm.setError(message);
+        if (message.includes('already registered')) {
+          this.switchMode('login');
+        }
       } finally {
         this.authForm.setLoading(false);
       }

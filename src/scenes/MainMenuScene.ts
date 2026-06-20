@@ -190,11 +190,11 @@ export default class MainMenuScene extends Phaser.Scene {
         authButtonY,
         SIGN_IN_BUTTON_TEXTURE_KEY,
         menuButtonWidth,
-        () => this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'register' }),
+        () => this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'login' }),
       );
     } else {
       this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN / REGISTER', () => {
-        this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'register' });
+        this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'login' });
       });
     }
 
@@ -314,12 +314,12 @@ export default class MainMenuScene extends Phaser.Scene {
     unlockMobileAudio(this.game);
 
     if (isFirebaseEnabled() && !isSignedInAccount()) {
-      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'register' });
+      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'login' });
       return;
     }
 
     if (!getCurrentUser()) {
-      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'register' });
+      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'login' });
       return;
     }
 
