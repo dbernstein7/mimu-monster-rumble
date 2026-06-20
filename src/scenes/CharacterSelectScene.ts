@@ -11,6 +11,7 @@ import {
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
 import { unlockMobileAudio } from '../utils/audioUnlock';
+import { returnToMainMenu } from '../utils/sceneNav';
 import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
   applyRoundedCardMask,
@@ -157,9 +158,9 @@ export default class CharacterSelectScene extends Phaser.Scene {
         .setInteractive({ useHandCursor: true });
       backBtn.on('pointerover', () => backBtn.setColor('#ffc857'));
       backBtn.on('pointerout', () => backBtn.setColor('#a89bc4'));
-      backBtn.on('pointerdown', () => {
+      backBtn.on('pointerup', () => {
         this.stopChooseMimuAudio();
-        this.scene.start('MainMenuScene');
+        returnToMainMenu(this.game);
       });
     }
 

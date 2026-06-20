@@ -1,7 +1,10 @@
 import Phaser from 'phaser';
 import { destroyAuthFormOverlay } from '../ui/authForm';
 
+export const MAIN_MENU_SCENE_KEY = 'MainMenuScene';
 export const AUTH_SCENE_KEY = 'AuthScene';
+/** Ignore menu clicks briefly after leaving gameplay (prevents quit click hitting PLAY). */
+export const MAIN_MENU_INPUT_GUARD_MS = 500;
 
 /** Ensure auth HTML overlay never blocks menu clicks after leaving the account page. */
 export function bindAuthOverlaySceneCleanup(game: Phaser.Game): void {
@@ -46,4 +49,10 @@ export function startSceneNextTick(
     releaseStuckPointers(game);
     game.scene.start(key, data);
   }, 0);
+}
+
+export function returnToMainMenu(game: Phaser.Game): void {
+  startSceneNextTick(game, MAIN_MENU_SCENE_KEY, {
+    menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
+  });
 }

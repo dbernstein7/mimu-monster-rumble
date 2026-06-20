@@ -51,6 +51,18 @@ let auth: Auth | null = null;
 let db: Firestore | null = null;
 let initialAuthRestore: Promise<void> | null = null;
 let persistencePromise: Promise<void> | null = null;
+let cachedAuthUser: { userId: string; username: string } | null = null;
+
+function mapAuthUser(user: User): { userId: string; username: string } {
+  return {
+    userId: user.uid,
+    username: user.displayName?.trim() || 'Player',
+  };
+}
+
+function setCachedAuthUser(user: User | null): void {
+  cachedAuthUser = user ? mapAuthUser(user) : null;
+}
 
 export function isFirebaseEnabled(): boolean {
   return getFirebaseConfig() !== null;
@@ -71,7 +83,8 @@ export function getAuthInstance(): Auth | null {
 }
 
 export function isSignedInAccount(): boolean {
-  return !!(initFirebase() && auth?.currentUser);
+  if (!initFirebase()) return false;
+  return !!(auth?.currentUser || cachedAuthUser);
 }
 
 function initFirebase(): boolean {
@@ -96,6 +109,7 @@ function requireCloudAuth(): Auth {
 export function initAuthListener(): void {
   if (!initFirebase() || !auth) return;
   onAuthStateChanged(auth, (user) => {
+    setCachedAuthUser(user);
     if (user) {
       void import('./userProfile').then(({ loadUserProfile }) => loadUserProfile());
     } else {
@@ -186,6 +200,7 @@ export async function register(
   await updateProfile(cred.user, { displayName: username.trim() });
   const { ensureUserProfile } = await import('./userProfile');
   await ensureUserProfile(cred.user.uid, username);
+  setCachedAuthUser(cred.user);
   return { userId: cred.user.uid, username: username.trim() };
 }
 
@@ -198,6 +213,7 @@ export async function login(
   const username = cred.user.displayName?.trim() || email.split('@')[0] || 'Player';
   const { loadUserProfile } = await import('./userProfile');
   await loadUserProfile();
+  setCachedAuthUser(cred.user);
   return { userId: cred.user.uid, username };
 }
 
@@ -209,6 +225,7 @@ export async function logout(): Promise<void> {
     ]);
   }
   initialAuthRestore = null;
+  setCachedAuthUser(null);
   const { clearProfileCache } = await import('./userProfile');
   clearProfileCache();
 }
@@ -271,12 +288,9 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 
 export function getCurrentUser(): { userId: string; username: string } | null {
   if (initFirebase() && auth?.currentUser) {
-    return {
-      userId: auth.currentUser.uid,
-      username: auth.currentUser.displayName?.trim() || 'Player',
-    };
+    return mapAuthUser(auth.currentUser);
   }
-  return null;
+  return cachedAuthUser;
 }
 
 export async function getCurrentUserAsync(): Promise<{ userId: string; username: string } | null> {

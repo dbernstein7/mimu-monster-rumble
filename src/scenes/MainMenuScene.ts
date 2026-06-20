@@ -67,9 +67,15 @@ export default class MainMenuScene extends Phaser.Scene {
   private introLoopTimer?: Phaser.Time.TimerEvent;
   private introSound?: Phaser.Sound.BaseSound;
   private menuBackgroundSound?: Phaser.Sound.BaseSound;
+  private menuInputBlockedUntil = 0;
 
   constructor() {
     super({ key: 'MainMenuScene' });
+  }
+
+  init(data?: { menuInputDelayMs?: number }): void {
+    const delay = data?.menuInputDelayMs ?? 0;
+    this.menuInputBlockedUntil = delay > 0 ? Date.now() + delay : 0;
   }
 
   create(): void {
@@ -275,6 +281,17 @@ export default class MainMenuScene extends Phaser.Scene {
     this.scene.start('AuthScene', { next: nextScene, mode, fromLogout });
   }
 
+  private menuInputReady(): boolean {
+    return Date.now() >= this.menuInputBlockedUntil;
+  }
+
+  private guardMenuAction(action: MenuAction): MenuAction {
+    return () => {
+      if (!this.menuInputReady()) return;
+      action();
+    };
+  }
+
   private startGame(): void {
     unlockMobileAudio(this.game);
 
@@ -363,6 +380,8 @@ export default class MainMenuScene extends Phaser.Scene {
   update(): void {
     this.inputManager.update();
 
+    if (!this.menuInputReady()) return;
+
     if (this.inputManager.isMenuUpJustPressed()) {
       this.selectedIndex = (this.selectedIndex - 1 + this.menuItems.length) % this.menuItems.length;
       this.refreshHighlight();
@@ -391,7 +410,7 @@ export default class MainMenuScene extends Phaser.Scene {
       displayWidth,
       () => {
         unlockMobileAudio(this.game);
-        onClick();
+        this.guardMenuAction(onClick)();
       },
       50,
       MAIN_MENU_BUTTON_IDLE_ALPHA,
@@ -410,7 +429,7 @@ export default class MainMenuScene extends Phaser.Scene {
   private addMenuButton(x: number, y: number, label: string, onClick: () => void): void {
     const button = createStyledButton(this, x, y, label, () => {
       unlockMobileAudio(this.game);
-      onClick();
+      this.guardMenuAction(onClick)();
     });
     button.bg.setAlpha(MAIN_MENU_BUTTON_IDLE_ALPHA);
     button.label.setAlpha(MAIN_MENU_BUTTON_HIGHLIGHT_ALPHA);

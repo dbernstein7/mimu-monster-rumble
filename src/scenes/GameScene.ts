@@ -20,6 +20,7 @@ import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
+import { returnToMainMenu } from '../utils/sceneNav';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
@@ -243,7 +244,7 @@ export default class GameScene extends Phaser.Scene {
     this.tweens.resumeAll();
     this.stopAllGameAudio();
     this.abilitySystem?.cancelActiveEffects(this.player);
-    this.scene.start('MainMenuScene');
+    returnToMainMenu(this.game);
   }
 
   private clampEntity(sprite: Parameters<typeof clampSpriteToWorld>[0]): void {
@@ -922,7 +923,7 @@ export default class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     resumeBtn.on('pointerover', () => resumeBtn.setColor('#ffc857'));
     resumeBtn.on('pointerout', () => resumeBtn.setColor('#2ed573'));
-    resumeBtn.on('pointerdown', () => this.setPaused(false));
+    resumeBtn.on('pointerup', () => this.setPaused(false));
 
     const hint = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 45, 'ESC / P / START', {
@@ -945,7 +946,7 @@ export default class GameScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
     quit.on('pointerover', () => quit.setColor('#ffc857'));
     quit.on('pointerout', () => quit.setColor('#ff4757'));
-    quit.on('pointerdown', () => this.exitToMainMenu());
+    quit.on('pointerup', () => this.exitToMainMenu());
 
     blocker.on('pointerdown', (_p: unknown, _x: unknown, _y: unknown, ev?: Phaser.Types.Input.EventData) => {
       ev?.stopPropagation();

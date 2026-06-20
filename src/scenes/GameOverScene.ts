@@ -25,6 +25,7 @@ import {
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
 import { resetRunState } from '../utils/runState';
+import { returnToMainMenu } from '../utils/sceneNav';
 
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
@@ -189,7 +190,7 @@ export default class GameOverScene extends Phaser.Scene {
 
   private goToMainMenu(): void {
     resetRunState(this.registry);
-    this.scene.start('MainMenuScene');
+    returnToMainMenu(this.game);
   }
 }
 
