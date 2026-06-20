@@ -46,6 +46,9 @@ const config: Phaser.Types.Core.GameConfig = {
     touch: true,
     activePointers: 4,
   },
+  dom: {
+    createContainer: true,
+  },
   physics: {
     default: 'arcade',
     arcade: {

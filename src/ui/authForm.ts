@@ -1,3 +1,6 @@
+import Phaser from 'phaser';
+import { GAME_WIDTH } from '../config/gameConstants';
+
 export type AuthFormMode = 'login' | 'register';
 
 export interface AuthFormValues {
@@ -27,14 +30,8 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
     #${FORM_ID} {
-      position: fixed;
-      left: 50%;
-      top: 50%;
-      transform: translate(-50%, -50%);
-      width: min(92vw, 420px);
-      max-height: min(72vh, 480px);
-      overflow-y: auto;
-      z-index: 1000;
+      width: 420px;
+      max-width: 42vw;
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
@@ -45,11 +42,7 @@ function ensureStyles(): void {
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
       font-family: 'Exo 2', system-ui, sans-serif;
       color: #f5f0ff;
-      pointer-events: none;
-    }
-    #${FORM_ID} input,
-    #${FORM_ID} button {
-      pointer-events: auto;
+      box-sizing: border-box;
     }
     #${FORM_ID} label {
       font-size: 0.78rem;
@@ -110,22 +103,24 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-/** Remove any leftover auth overlay from the DOM (safe to call anytime). */
+/** Remove any legacy auth overlay left on document.body from older builds. */
 export function destroyAuthFormOverlay(): void {
-  blurFocusedInput();
-  document.querySelectorAll(`#${FORM_ID}`).forEach((node) => node.remove());
-  const gameContainer = document.getElementById('game-container');
-  gameContainer?.focus({ preventScroll: true });
-}
-
-function blurFocusedInput(): void {
+  document.querySelectorAll(`#${FORM_ID}`).forEach((node) => {
+    if (!node.closest('.phaser-dom-container')) {
+      node.remove();
+    }
+  });
   const active = document.activeElement;
   if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {
     active.blur();
   }
 }
 
-export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): AuthFormHandle {
+export function mountAuthForm(
+  scene: Phaser.Scene,
+  initialMode: AuthFormMode,
+  onSubmit: () => void,
+): AuthFormHandle {
   destroyAuthFormOverlay();
   ensureStyles();
 
@@ -185,8 +180,11 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
   submitBtn.textContent = submitLabel(initialMode);
 
   root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
-  const host = document.getElementById('game-container') ?? document.body;
-  host.appendChild(root);
+
+  const dom = scene.add.dom(GAME_WIDTH / 2, 400, root);
+  dom.setOrigin(0.5);
+  dom.setScrollFactor(0);
+  dom.setDepth(5000);
 
   let mode: AuthFormMode = initialMode;
 
@@ -223,6 +221,15 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
     onSubmit();
   });
 
+  let destroyed = false;
+  const destroyDom = (): void => {
+    if (destroyed) return;
+    destroyed = true;
+    if (dom.active) {
+      dom.destroy();
+    }
+  };
+
   return {
     getValues: () => ({
       email: emailInput.value.trim(),
@@ -244,8 +251,7 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
       syncMode();
     },
     destroy: () => {
-      blurFocusedInput();
-      destroyAuthFormOverlay();
+      destroyDom();
     },
   };
 }

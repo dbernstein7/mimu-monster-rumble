@@ -75,7 +75,7 @@ export default class AuthScene extends Phaser.Scene {
       this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
       this.syncTabColors();
 
-      this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
+      this.authForm = mountAuthForm(this, this.mode, () => void this.handleSubmit());
       this.authForm.setMode(this.mode);
     }
 
