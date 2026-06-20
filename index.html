@@ -2,7 +2,9 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="description" content="MIMU VS MONSTER RUMBLE — survive waves of Halloween monsters, defeat bosses, and climb the leaderboard." />
     <meta name="theme-color" content="#1a0a2e" />
     <meta property="og:title" content="MIMU VS MONSTER RUMBLE" />
@@ -66,9 +68,41 @@
         font-size: 0.85rem;
         opacity: 0.85;
       }
+      #game-container.mobile-hidden {
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #rotate-prompt {
+        position: fixed;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        padding: 2rem;
+        background: #1a0a2e;
+        color: #ffc857;
+        font-family: 'Orbitron', system-ui, sans-serif;
+        text-align: center;
+        z-index: 5;
+      }
+      #rotate-prompt.visible {
+        display: flex;
+      }
+      #rotate-prompt p {
+        font-family: 'Exo 2', system-ui, sans-serif;
+        color: #f5f0ff;
+        max-width: 20rem;
+        line-height: 1.5;
+      }
     </style>
   </head>
   <body>
+    <div id="rotate-prompt" aria-live="polite">
+      <strong>Rotate your device</strong>
+      <p>MIMU VS MONSTER RUMBLE plays in landscape. Turn your phone sideways to continue.</p>
+    </div>
     <div id="boot-loader" aria-live="polite">
       <strong>MIMU VS MONSTER RUMBLE</strong>
       <p>Loading assets…</p>

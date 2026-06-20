@@ -15,6 +15,8 @@ import { SecondaryProjectileSystem } from '../systems/SecondaryProjectileSystem'
 import { PlayerWalkingSfx } from '../systems/PlayerWalkingSfx';
 import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
+import { MobileControls } from '../ui/MobileControls';
+import { isMobileTouchDevice, tryLockLandscape } from '../utils/device';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
@@ -74,6 +76,7 @@ export default class GameScene extends Phaser.Scene {
   private bossMusic?: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
   private bossMusicVolumeTween?: Phaser.Tweens.Tween;
   private levelMusic?: LevelMusicHandle;
+  private mobileControls?: MobileControls;
 
   constructor() {
     super({ key: 'GameScene' });
@@ -104,7 +107,9 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawArena(level);
     createScreenCornerVignette(this);
-    const fullscreenPos = getFullscreenButtonBottomRightPosition();
+    const fullscreenPos = isMobileTouchDevice()
+      ? { x: GAME_WIDTH - 14 - 66, y: 14 + 17 }
+      : getFullscreenButtonBottomRightPosition();
     mountFullscreenButton(this, fullscreenPos.x, fullscreenPos.y);
 
     this.enemies = this.add.group();
@@ -148,6 +153,13 @@ export default class GameScene extends Phaser.Scene {
     this.hud = new HUD(this, () => this.togglePause());
 
     this.inputManager = new InputManager(this);
+    if (isMobileTouchDevice()) {
+      this.mobileControls = new MobileControls(this, this.characterId);
+      this.inputManager.setMobileControls(this.mobileControls);
+      this.input.once('pointerdown', () => {
+        void tryLockLandscape();
+      });
+    }
 
     this.setupCollisions();
     this.createPauseOverlay();
@@ -760,6 +772,7 @@ export default class GameScene extends Phaser.Scene {
       this.abilitySystem.pauseExplosionSfx(true);
       this.playerWalkingSfx.setPaused(true);
       setCombatSfxPaused(this, true);
+      this.mobileControls?.setEnabled(false);
     } else {
       this.physics.resume();
       this.tweens.resumeAll();
@@ -771,6 +784,7 @@ export default class GameScene extends Phaser.Scene {
       this.abilitySystem.pauseExplosionSfx(false);
       this.playerWalkingSfx.setPaused(false);
       setCombatSfxPaused(this, false);
+      this.mobileControls?.setEnabled(true);
     }
   }
 

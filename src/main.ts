@@ -8,7 +8,10 @@ import GameScene from './scenes/GameScene';
 import GameOverScene from './scenes/GameOverScene';
 import LeaderboardScene from './scenes/LeaderboardScene';
 import { loadHeadlineFont } from './assets/uiFonts';
+import { bindMobileOrientationUi } from './utils/device';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
+
+bindMobileOrientationUi();
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,

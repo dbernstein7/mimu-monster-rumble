@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import type { MobileControls } from '../ui/MobileControls';
 
 export interface MovementVector {
   x: number;
@@ -7,6 +8,7 @@ export interface MovementVector {
 
 export class InputManager {
   private scene: Phaser.Scene;
+  private mobileControls?: MobileControls;
   private cursors: Phaser.Types.Input.Keyboard.CursorKeys;
   private keys: {
     W: Phaser.Input.Keyboard.Key;
@@ -29,6 +31,10 @@ export class InputManager {
   private lastDpadLeft = false;
   private lastDpadRight = false;
   lastMovement: MovementVector = { x: 0, y: 0 };
+
+  setMobileControls(controls: MobileControls | undefined): void {
+    this.mobileControls = controls;
+  }
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene;
@@ -78,6 +84,10 @@ export class InputManager {
   }
 
   getMovement(): MovementVector {
+    if (this.mobileControls?.isActive()) {
+      return this.mobileControls.getMovement();
+    }
+
     let x = 0;
     let y = 0;
     let fromKeyboard = false;
@@ -129,12 +139,18 @@ export class InputManager {
   }
 
   isAbilityJustPressed(): boolean {
+    if (this.mobileControls?.isActive()) {
+      return this.mobileControls.consumeAbilityPress();
+    }
     const keyPressed = Phaser.Input.Keyboard.JustDown(this.keys.SPACE);
     const btnPressed = this.isGamepadButtonJustPressed(0, 'ability');
     return keyPressed || btnPressed;
   }
 
   isSecondaryProjectileJustPressed(): boolean {
+    if (this.mobileControls?.isActive()) {
+      return this.mobileControls.consumeSecondaryPress();
+    }
     const keyPressed = Phaser.Input.Keyboard.JustDown(this.keys.Q);
     const btnPressed = this.isGamepadButtonJustPressed(7, 'secondary');
     return keyPressed || btnPressed;
