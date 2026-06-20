@@ -16,7 +16,7 @@ import { PlayerWalkingSfx } from '../systems/PlayerWalkingSfx';
 import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
-import { isMobileTouchDevice, tryLockLandscape } from '../utils/device';
+import { isMobileTouchDevice } from '../utils/device';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
@@ -107,10 +107,10 @@ export default class GameScene extends Phaser.Scene {
 
     this.drawArena(level);
     createScreenCornerVignette(this);
-    const fsPos = isMobileTouchDevice()
-      ? { x: GAME_WIDTH - 14 - 66, y: 14 + 17 }
-      : getFullscreenButtonBottomRightPosition();
-    mountFullscreenButton(this, fsPos.x, fsPos.y);
+    if (!isMobileTouchDevice()) {
+      const fsPos = getFullscreenButtonBottomRightPosition();
+      mountFullscreenButton(this, fsPos.x, fsPos.y);
+    }
 
     this.enemies = this.add.group();
     this.coins = this.add.group();
@@ -156,9 +156,6 @@ export default class GameScene extends Phaser.Scene {
     if (isMobileTouchDevice()) {
       this.mobileControls = new MobileControls(this, this.characterId);
       this.inputManager.setMobileControls(this.mobileControls);
-      this.input.once('pointerdown', () => {
-        void tryLockLandscape();
-      });
     }
 
     this.setupCollisions();

@@ -8,7 +8,12 @@ import GameScene from './scenes/GameScene';
 import GameOverScene from './scenes/GameOverScene';
 import LeaderboardScene from './scenes/LeaderboardScene';
 import { loadHeadlineFont } from './assets/uiFonts';
-import { bindMobileOrientationUi, bindMobileViewport, getMobileScaleMode, isMobileImmersive } from './utils/device';
+import {
+  bindMobileOrientationUi,
+  bindMobileViewport,
+  getMobileScaleMode,
+  isMobileTouchDevice,
+} from './utils/device';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
 
 bindMobileOrientationUi();
@@ -20,7 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
   parent: 'game-container',
   backgroundColor: '#1a0a2e',
   scale: {
-    mode: getMobileScaleMode(),
+    mode: isMobileTouchDevice() ? getMobileScaleMode() : Phaser.Scale.FIT,
     autoCenter: Phaser.Scale.CENTER_BOTH,
     width: GAME_WIDTH,
     height: GAME_HEIGHT,
@@ -65,8 +70,7 @@ void loadHeadlineFont().then(() => {
 
   function syncLetterboxBackground(): void {
     if (!gameContainer) return;
-    const expanded = game.scale.isFullscreen || isMobileImmersive();
-    gameContainer.style.backgroundColor = expanded ? '#1a0a2e' : '#000000';
+    gameContainer.style.backgroundColor = game.scale.isFullscreen ? '#1a0a2e' : '#000000';
   }
 
   function onDisplayChange(): void {
@@ -75,7 +79,10 @@ void loadHeadlineFont().then(() => {
     game.scale.refresh();
   }
 
-  game.scale.on('enterfullscreen', onDisplayChange);
-  game.scale.on('leavefullscreen', onDisplayChange);
+  if (!isMobileTouchDevice()) {
+    game.scale.on('enterfullscreen', onDisplayChange);
+    game.scale.on('leavefullscreen', onDisplayChange);
+  }
+
   onDisplayChange();
 });

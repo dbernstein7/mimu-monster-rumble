@@ -2,10 +2,8 @@ import Phaser from 'phaser';
 import type { Game as PhaserGame } from 'phaser';
 
 const MOBILE_VIEWPORT_IDS = ['game-container', 'boot-loader', 'rotate-prompt'] as const;
-const IMMERSIVE_CLASS = 'mobile-immersive';
 
 let viewportGame: PhaserGame | undefined;
-let immersive = false;
 
 export function isMobileTouchDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -13,53 +11,6 @@ export function isMobileTouchDevice(): boolean {
   const narrow = window.matchMedia('(max-width: 1024px)').matches;
   const touchPoints = navigator.maxTouchPoints > 0;
   return coarse && narrow && touchPoints;
-}
-
-export function isIosBrowser(): boolean {
-  if (typeof navigator === 'undefined') return false;
-  return (
-    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
-  );
-}
-
-export function isMobileImmersive(): boolean {
-  return immersive;
-}
-
-export function isNativeFullscreenActive(): boolean {
-  if (typeof document === 'undefined') return false;
-  const container = document.getElementById('game-container');
-  const doc = document as Document & { webkitFullscreenElement?: Element | null };
-  return document.fullscreenElement === container || doc.webkitFullscreenElement === container;
-}
-
-export function setMobileImmersive(active: boolean): void {
-  immersive = active;
-  document.body.classList.toggle(IMMERSIVE_CLASS, active);
-  syncMobileViewport();
-}
-
-/** Nudge mobile browsers to collapse the URL bar before sizing the canvas. */
-export async function collapseBrowserChrome(): Promise<void> {
-  if (typeof window === 'undefined' || typeof document === 'undefined') return;
-  if (!isMobileTouchDevice()) return;
-
-  const html = document.documentElement;
-  html.classList.add('chrome-collapse');
-
-  await new Promise<void>((resolve) => {
-    requestAnimationFrame(() => {
-      window.scrollTo(0, 1);
-      requestAnimationFrame(() => {
-        window.scrollTo(0, 0);
-        html.classList.remove('chrome-collapse');
-        resolve();
-      });
-    });
-  });
-
-  await new Promise((resolve) => window.setTimeout(resolve, 120));
 }
 
 function layoutMobileElements(top: number, left: number, width: number, height: number): void {
@@ -77,38 +28,23 @@ function layoutMobileElements(top: number, left: number, width: number, height: 
   window.scrollTo(0, 0);
 }
 
-function getExpandedMobileMetrics(): { top: number; left: number; width: number; height: number } {
-  const vv = window.visualViewport;
-  const width = vv?.width ?? window.innerWidth;
-  const height = Math.max(window.innerHeight, vv?.height ?? 0, document.documentElement.clientHeight);
-  const top = vv?.offsetTop ?? 0;
-  const left = vv?.offsetLeft ?? 0;
-  return { top, left, width, height };
-}
-
-/** Pin layout to the visible viewport so mobile browser chrome does not clip the game. */
+/** Size the game to the visible mobile viewport (below browser chrome). */
 export function syncMobileViewport(): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   if (!isMobileTouchDevice()) return;
 
-  if (isNativeFullscreenActive() || immersive) {
-    const metrics = getExpandedMobileMetrics();
-    layoutMobileElements(metrics.top, metrics.left, metrics.width, metrics.height);
-    return;
-  }
-
   const vv = window.visualViewport;
-  if (!vv) {
-    layoutMobileElements(0, 0, window.innerWidth, window.innerHeight);
+  if (vv) {
+    layoutMobileElements(
+      Math.max(0, vv.offsetTop),
+      Math.max(0, vv.offsetLeft),
+      vv.width,
+      vv.height,
+    );
     return;
   }
 
-  layoutMobileElements(
-    Math.max(0, vv.offsetTop),
-    Math.max(0, vv.offsetLeft),
-    vv.width,
-    vv.height,
-  );
+  layoutMobileElements(0, 0, window.innerWidth, window.innerHeight);
 }
 
 function onMobileViewportChange(): void {
@@ -131,9 +67,6 @@ export function bindMobileViewport(game?: PhaserGame): void {
   window.visualViewport?.addEventListener('scroll', onMobileViewportChange);
   window.addEventListener('orientationchange', onMobileViewportChange);
   window.addEventListener('resize', onMobileViewportChange);
-
-  document.addEventListener('fullscreenchange', onMobileViewportChange);
-  document.addEventListener('webkitfullscreenchange', onMobileViewportChange);
 }
 
 export function isPortraitMobile(): boolean {
@@ -158,17 +91,6 @@ export function bindMobileOrientationUi(): void {
   syncMobileOrientationUi();
 }
 
-export async function tryLockLandscape(): Promise<void> {
-  if (!isMobileTouchDevice()) return;
-  const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
-  if (!orientation?.lock) return;
-  try {
-    await orientation.lock('landscape');
-  } catch {
-    // Requires user gesture or is unsupported — rotate prompt still guides the player.
-  }
-}
-
 export function getMobileScaleMode(): number {
-  return isMobileTouchDevice() ? Phaser.Scale.ENVELOP : Phaser.Scale.FIT;
+  return Phaser.Scale.FIT;
 }

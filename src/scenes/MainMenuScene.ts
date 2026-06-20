@@ -30,7 +30,7 @@ import {
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
-import { isIosBrowser, isMobileTouchDevice } from '../utils/device';
+import { isMobileTouchDevice } from '../utils/device';
 import {
   hasIntroSfx,
   INTRO_SFX_GAP_MS,
@@ -190,7 +190,7 @@ export default class MainMenuScene extends Phaser.Scene {
     }
 
     const usernameY = authButtonY + menuButtonHeight / 2 + 22;
-    let fullscreenY = authButtonY + menuButtonHeight / 2 + 72;
+    let footerY = authButtonY + menuButtonHeight / 2 + 72;
 
     if (user) {
       const username = this.add
@@ -202,24 +202,22 @@ export default class MainMenuScene extends Phaser.Scene {
         })
         .setOrigin(0.5);
       this.menuUi.add(username);
-      fullscreenY = usernameY + 52;
+      footerY = usernameY + 52;
     }
 
-    const fullscreenBtn = mountFullscreenButton(this, GAME_WIDTH / 2, fullscreenY);
-    fullscreenBtn?.setAlpha(isMobileTouchDevice() ? 1 : MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
-    if (fullscreenBtn && isMobileTouchDevice()) {
-      fullscreenBtn.setScale(1.15);
+    if (!isMobileTouchDevice()) {
+      const fullscreenBtn = mountFullscreenButton(this, GAME_WIDTH / 2, footerY);
+      fullscreenBtn?.setAlpha(MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
+      if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
+      footerY += 52;
     }
-    if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
 
     const footerHint = this.add
       .text(
         GAME_WIDTH / 2,
         GAME_HEIGHT - 36,
         isMobileTouchDevice()
-          ? isIosBrowser()
-            ? 'Tap FULLSCREEN to expand  ·  For no browser bar: Share → Add to Home Screen'
-            : 'Tap FULLSCREEN to hide the browser bar  ·  Rotate to landscape  ·  Touch controls in-game'
+          ? 'Rotate to landscape  ·  Touch controls in-game'
           : 'Click FULLSCREEN for best view  ·  Space / A to confirm  ·  Mouse + Keyboard + Controller',
         {
           fontFamily: UI_FONTS.body,
