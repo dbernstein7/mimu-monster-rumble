@@ -36,7 +36,8 @@ export const AUTH_PANEL = {
 
 /** Game-space anchors for auth HTML (1280×720). */
 export const AUTH_LAYOUT = {
-  formCenterY: 302,
+  /** Top edge of HTML block — below ACCOUNT title (~y130). */
+  formTopY: 162,
   backY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
 } as const;
 
@@ -63,8 +64,21 @@ function ensureStyles(): void {
       align-items: center;
       gap: calc(0.75rem * var(--auth-ui-scale));
       pointer-events: auto;
-      transform: translate(-50%, -50%);
+      transform: translate(-50%, 0);
       box-sizing: border-box;
+    }
+    .mimu-auth-subtitle {
+      margin: 0;
+      font-family: 'Exo 2', system-ui, sans-serif;
+      font-size: 13px;
+      color: #8a7aa8;
+      text-align: center;
+      line-height: 1.45;
+      max-width: 100%;
+      padding: 0 0.25rem;
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-subtitle {
+      font-size: calc(13px * var(--auth-ui-scale));
     }
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile {
       gap: 0.6rem;
@@ -109,6 +123,16 @@ function ensureStyles(): void {
       cursor: pointer;
       padding: 0.35rem 0.65rem;
       min-height: 36px;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .mimu-auth-tabs button:focus {
+      outline: none;
+    }
+    .mimu-auth-tabs button:focus-visible {
+      outline: 2px solid rgba(255, 200, 87, 0.55);
+      outline-offset: 2px;
+      border-radius: 6px;
     }
     .mimu-auth-tabs button.active {
       color: #ffc857;
@@ -275,7 +299,7 @@ function positionAuthUi(
   const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
   const canvasScale = canvasRect.width / GAME_WIDTH;
   const centerX = GAME_WIDTH / 2;
-  const formCenter = gamePointToContainer(centerX, AUTH_LAYOUT.formCenterY, canvasRect, containerRect);
+  const formTop = gamePointToContainer(centerX, AUTH_LAYOUT.formTopY, canvasRect, containerRect);
   const backCenter = gamePointToContainer(centerX, AUTH_LAYOUT.backY, canvasRect, containerRect);
 
   const formWidth = panelWidth * (mobile ? 0.9 : 0.84);
@@ -283,8 +307,8 @@ function positionAuthUi(
   const uiScale = mobile ? 1 : Math.min(1.4, Math.max(1, canvasScale * 1.05));
 
   shell.style.setProperty('--auth-ui-scale', String(uiScale));
-  overlay.style.left = `${formCenter.left}px`;
-  overlay.style.top = `${formCenter.top}px`;
+  overlay.style.left = `${formTop.left}px`;
+  overlay.style.top = `${formTop.top}px`;
   overlay.style.width = `${formWidth}px`;
 
   backBtn.style.left = `${backCenter.left}px`;
@@ -334,6 +358,10 @@ export function mountAuthForm(
 
   const tabs = document.createElement('div');
   tabs.className = 'mimu-auth-tabs';
+  const subtitle = document.createElement('p');
+  subtitle.className = 'mimu-auth-subtitle';
+  subtitle.textContent =
+    'Create an account or log in — your wallet and scores sync in the cloud';
   const registerTab = document.createElement('button');
   registerTab.type = 'button';
   registerTab.textContent = 'REGISTER';
@@ -412,7 +440,7 @@ export function mountAuthForm(
   backBtn.className = 'mimu-auth-action mimu-auth-back';
   backBtn.textContent = '← BACK';
 
-  overlay.append(tabs, root, continueBtn);
+  overlay.append(subtitle, tabs, root, continueBtn);
   shell.append(overlay, backBtn);
   container.appendChild(shell);
   positionAuthUi(shell, overlay, backBtn, scene);

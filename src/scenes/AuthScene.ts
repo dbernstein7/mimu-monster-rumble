@@ -52,22 +52,17 @@ export default class AuthScene extends Phaser.Scene {
     createGlowTitle(this, GAME_WIDTH / 2, 130, 'ACCOUNT', '32px');
 
     const cloudReady = isFirebaseEnabled();
-    this.add
-      .text(
-        GAME_WIDTH / 2,
-        168,
-        cloudReady
-          ? 'Create an account or log in — your wallet and scores sync in the cloud'
-          : getCloudAuthRequiredMessage(),
-        {
+    if (!cloudReady) {
+      this.add
+        .text(GAME_WIDTH / 2, 168, getCloudAuthRequiredMessage(), {
           fontFamily: UI_FONTS.body,
           fontSize: '13px',
-          color: cloudReady ? '#8a7aa8' : '#ff4757',
+          color: '#ff4757',
           align: 'center',
           wordWrap: { width: AUTH_PANEL.width - 80 },
-        },
-      )
-      .setOrigin(0.5);
+        })
+        .setOrigin(0.5);
+    }
 
     const signedIn = !this.fromLogout && !!getCurrentUser();
 
