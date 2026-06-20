@@ -12,7 +12,7 @@ import {
   validateRegistrationInput,
 } from '../services/userProfile';
 import { GAME_WIDTH } from '../config/gameConstants';
-import { focusGameSurface, startSceneNextTick } from '../utils/sceneNav';
+import { focusGameSurface } from '../utils/sceneNav';
 import {
   drawMenuBackdrop,
   createGlowTitle,
@@ -21,13 +21,12 @@ import {
   mountFullscreenButton,
   UI_FONTS,
 } from '../ui/theme';
-import { mountAuthForm, type AuthFormHandle } from '../ui/authForm';
+import { destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
   private mode: 'login' | 'register' = 'login';
   private authForm?: AuthFormHandle;
-  private tabButtons: Phaser.GameObjects.Text[] = [];
   private fromLogout = false;
 
   constructor() {
@@ -42,6 +41,7 @@ export default class AuthScene extends Phaser.Scene {
 
   create(): void {
     this.input.keyboard?.clearCaptures();
+    this.input.resetPointers();
 
     drawMenuBackdrop(this);
     mountFullscreenButton(this);
@@ -69,83 +69,51 @@ export default class AuthScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
 
-    if (cloudReady) {
-      this.createTabButton(GAME_WIDTH / 2 - 90, 210, 'REGISTER', () => this.switchMode('register'));
-      this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
-      this.syncTabColors();
-
-      this.authForm = mountAuthForm(this, this.mode, () => void this.handleSubmit());
-      this.authForm.setMode(this.mode);
-    }
-
     const signedIn = !this.fromLogout && !!getCurrentUser();
-    if (signedIn) {
-      createStyledButton(
-        this,
-        GAME_WIDTH / 2,
-        610,
-        'CONTINUE →',
-        () => this.goToNextScene(),
-        320,
-        0x2ed573,
-      );
-    }
 
-    createStyledButton(this, GAME_WIDTH / 2, signedIn ? 672 : 610, '← BACK', () => this.leaveScene(), 220);
+    if (cloudReady) {
+      this.authForm = mountAuthForm(
+        this,
+        this.mode,
+        () => void this.handleSubmit(),
+        () => this.leaveScene(),
+        {
+          showContinue: signedIn,
+          onContinue: () => this.goToNextScene(),
+        },
+      );
+      this.authForm.setMode(this.mode);
+    } else {
+      createStyledButton(this, GAME_WIDTH / 2, 610, '← BACK', () => this.leaveScene(), 220);
+    }
   }
 
   shutdown(): void {
     this.teardownAuthForm();
-    this.tabButtons = [];
     focusGameSurface();
   }
 
   private teardownAuthForm(): void {
     this.authForm?.destroy();
     this.authForm = undefined;
+    destroyAuthFormOverlay();
   }
 
   private leaveScene(): void {
     const target =
       this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene;
-    this.teardownAuthForm();
-    startSceneNextTick(this.game, target);
+    this.navigateTo(target);
   }
 
   private goToNextScene(): void {
+    this.navigateTo(this.nextScene);
+  }
+
+  private navigateTo(target: string): void {
     this.teardownAuthForm();
-    startSceneNextTick(this.game, this.nextScene);
-  }
-
-  private switchMode(mode: 'login' | 'register'): void {
-    this.mode = mode;
-    this.authForm?.setMode(mode);
-    this.syncTabColors();
-  }
-
-  private syncTabColors(): void {
-    this.tabButtons.forEach((btn) => {
-      const active =
-        (this.mode === 'register' && btn.text === 'REGISTER') ||
-        (this.mode === 'login' && btn.text === 'LOG IN');
-      btn.setColor(active ? '#ffc857' : '#a89bc4');
-    });
-  }
-
-  private createTabButton(x: number, y: number, label: string, onClick: () => void): void {
-    const btn = this.add
-      .text(x, y, label, {
-        fontFamily: UI_FONTS.body,
-        fontSize: '15px',
-        color: label === 'LOG IN' ? '#ffc857' : '#a89bc4',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setInteractive({ useHandCursor: true });
-    btn.on('pointerdown', onClick);
-    btn.on('pointerover', () => btn.setColor('#ffc857'));
-    btn.on('pointerout', () => this.syncTabColors());
-    this.tabButtons.push(btn);
+    focusGameSurface();
+    this.input.resetPointers();
+    this.scene.start(target);
   }
 
   private async handleSubmit(): Promise<void> {
@@ -154,7 +122,7 @@ export default class AuthScene extends Phaser.Scene {
     const values = this.authForm.getValues();
     this.authForm.setError('');
 
-    if (this.mode === 'register') {
+    if (this.authForm.getMode() === 'register') {
       const validationError = validateRegistrationInput(values.email, values.password, values.username);
       if (validationError) {
         this.authForm.setError(validationError);
@@ -169,7 +137,8 @@ export default class AuthScene extends Phaser.Scene {
         const message = formatAuthError(err);
         this.authForm.setError(message);
         if (message.includes('already registered')) {
-          this.switchMode('login');
+          this.mode = 'login';
+          this.authForm.setMode('login');
         }
       } finally {
         this.authForm.setLoading(false);

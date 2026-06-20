@@ -183,7 +183,7 @@ export function createStyledButton(
 
   hit.on('pointerover', () => draw(true));
   hit.on('pointerout', () => draw(false));
-  hit.on('pointerdown', onClick);
+  hit.on('pointerup', onClick);
 
   return {
     bg: g,
@@ -220,7 +220,7 @@ export function createImageMenuButton(
   };
   setHighlighted(false);
 
-  hit.on('pointerdown', onClick);
+  hit.on('pointerup', onClick);
 
   return { image, hit, setHighlighted };
 }
