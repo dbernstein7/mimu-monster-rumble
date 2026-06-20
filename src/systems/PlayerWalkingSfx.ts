@@ -3,6 +3,7 @@ import type { Player } from '../entities/Player';
 import type { MovementVector } from '../input/InputManager';
 import type { CharacterId } from '../types/game';
 import { getWalkingSfxKey, hasWalkingSfx, WALKING_SFX_VOLUME } from '../assets/soundFxAssets';
+import { isSoundManagerLocked, playSoundWhenReady } from '../utils/audioUnlock';
 
 export class PlayerWalkingSfx {
   private scene: Phaser.Scene;
@@ -43,8 +44,10 @@ export class PlayerWalkingSfx {
       });
     }
 
-    if (!this.walkSound.isPlaying && !this.walkSound.play()) {
-      this.stop();
+    if (!this.walkSound.isPlaying && !playSoundWhenReady(this.walkSound, this.scene.sound)) {
+      if (!isSoundManagerLocked(this.scene.sound)) {
+        this.stop();
+      }
     }
   }
 

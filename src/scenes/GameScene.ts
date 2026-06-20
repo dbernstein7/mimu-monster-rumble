@@ -17,6 +17,7 @@ import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
 import { isMobileTouchDevice } from '../utils/device';
+import { onGameAudioUnlocked } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
@@ -177,6 +178,11 @@ export default class GameScene extends Phaser.Scene {
 
     this.spawnWave();
     this.startLevelMusic();
+    onGameAudioUnlocked(() => {
+      if (!this.scene.isActive() || this.bossActive || this.levelTransitioning) return;
+      this.stopLevelMusic();
+      this.startLevelMusic();
+    }, this);
   }
 
   private drawArena(level: LevelConfig): void {

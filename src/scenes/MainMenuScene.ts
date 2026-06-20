@@ -31,6 +31,7 @@ import {
 } from '../assets/uiAssets';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
+import { onGameAudioUnlocked } from '../utils/audioUnlock';
 import {
   hasIntroSfx,
   INTRO_SFX_GAP_MS,
@@ -232,6 +233,10 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.refreshHighlight();
     this.startMenuAudio();
+    onGameAudioUnlocked(() => {
+      if (!this.scene.isActive()) return;
+      this.startMenuAudio();
+    }, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuAudio());
   }
 

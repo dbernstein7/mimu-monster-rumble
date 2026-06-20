@@ -11,19 +11,14 @@ import { UI_COLORS } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
 
 const EDGE = 22;
-const JOYSTICK_BASE_RADIUS = 82;
-const JOYSTICK_THUMB_RADIUS = 36;
 const JOYSTICK_MAX_DRAG = 62;
 const JOYSTICK_DEADZONE = 0.16;
 const ABILITY_RADIUS = 60;
 const SECONDARY_RADIUS = 56;
 const BTN_GAP = 14;
 const ICON_PX = 72;
+const BTN_HIT_PAD = 10;
 
-const JOYSTICK_CENTER = {
-  x: EDGE + JOYSTICK_BASE_RADIUS,
-  y: GAME_HEIGHT - EDGE - JOYSTICK_BASE_RADIUS,
-};
 const ABILITY_BTN = {
   x: GAME_WIDTH - EDGE - ABILITY_RADIUS,
   y: GAME_HEIGHT - EDGE - ABILITY_RADIUS,
@@ -37,6 +32,11 @@ const SECONDARY_BTN = {
 
 function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
+}
+
+function isOnPowerButton(x: number, y: number): boolean {
+  if (dist(x, y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + BTN_HIT_PAD) return true;
+  return dist(x, y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + BTN_HIT_PAD;
 }
 
 interface PowerButton {
@@ -53,11 +53,12 @@ interface PowerButton {
 export class MobileControls {
   private scene: Phaser.Scene;
   private container: Phaser.GameObjects.Container;
-  private thumb?: Phaser.GameObjects.Arc;
   private abilityBtn?: PowerButton;
   private secondaryBtn?: PowerButton;
   private enabled = true;
   private joystickPointerId: number | null = null;
+  private joystickOriginX = 0;
+  private joystickOriginY = 0;
   private stickX = 0;
   private stickY = 0;
   private abilityQueued = false;
@@ -74,12 +75,6 @@ export class MobileControls {
       this.container.setVisible(false);
       return;
     }
-
-    const base = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_BASE_RADIUS, 0x140a24, 0.6);
-    base.setStrokeStyle(4, UI_COLORS.panelHighlight, 0.9);
-
-    this.thumb = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_THUMB_RADIUS, 0xffc857, 0.8);
-    this.thumb.setStrokeStyle(3, 0xffffff, 0.95);
 
     const primaryKey = getPrimaryAbilityTextureKey(scene, characterId);
     const secondaryKey = getSecondaryAbilityTextureKey(scene, characterId);
@@ -102,26 +97,17 @@ export class MobileControls {
     this.abilityBtn.hit.on('pointerdown', () => this.queueAbilityPress());
     this.secondaryBtn.hit.on('pointerdown', () => this.queueSecondaryPress());
 
-    this.container.add([
-      base,
-      this.thumb,
-      this.abilityBtn.container,
-      this.secondaryBtn.container,
-    ]);
+    this.container.add([this.abilityBtn.container, this.secondaryBtn.container]);
 
     const updateStick = (pointer: Phaser.Input.Pointer) => {
       if (this.joystickPointerId !== pointer.id) return;
-      const dx = pointer.x - JOYSTICK_CENTER.x;
-      const dy = pointer.y - JOYSTICK_CENTER.y;
+      const dx = pointer.x - this.joystickOriginX;
+      const dy = pointer.y - this.joystickOriginY;
       const len = Math.hypot(dx, dy);
       const clamped = Math.min(len, JOYSTICK_MAX_DRAG);
       const angle = Math.atan2(dy, dx);
       this.stickX = (Math.cos(angle) * clamped) / JOYSTICK_MAX_DRAG;
       this.stickY = (Math.sin(angle) * clamped) / JOYSTICK_MAX_DRAG;
-      this.thumb?.setPosition(
-        JOYSTICK_CENTER.x + Math.cos(angle) * clamped,
-        JOYSTICK_CENTER.y + Math.sin(angle) * clamped,
-      );
     };
 
     const resetStick = (pointer: Phaser.Input.Pointer) => {
@@ -129,24 +115,17 @@ export class MobileControls {
       this.joystickPointerId = null;
       this.stickX = 0;
       this.stickY = 0;
-      this.thumb?.setPosition(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y);
     };
 
     const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled || !pointer.isDown) return;
       if (this.joystickPointerId !== null) return;
+      if (isOnPowerButton(pointer.x, pointer.y)) return;
 
-      if (dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + 10) return;
-      if (dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + 10) {
-        return;
-      }
-
-      if (
-        dist(pointer.x, pointer.y, JOYSTICK_CENTER.x, JOYSTICK_CENTER.y) <= JOYSTICK_BASE_RADIUS + 16
-      ) {
-        this.joystickPointerId = pointer.id;
-        updateStick(pointer);
-      }
+      this.joystickPointerId = pointer.id;
+      this.joystickOriginX = pointer.x;
+      this.joystickOriginY = pointer.y;
+      updateStick(pointer);
     };
 
     const onPointerUp = (pointer: Phaser.Input.Pointer) => {
@@ -189,7 +168,6 @@ export class MobileControls {
       this.joystickPointerId = null;
       this.stickX = 0;
       this.stickY = 0;
-      this.thumb?.setPosition(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y);
       this.abilityBtn?.cooldownGfx.clear();
       this.secondaryBtn?.cooldownGfx.clear();
     }

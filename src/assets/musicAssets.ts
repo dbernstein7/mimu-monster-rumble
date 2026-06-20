@@ -1,3 +1,5 @@
+import { isSoundManagerLocked, playSoundWhenReady } from '../utils/audioUnlock';
+
 const musicModules = import.meta.glob('../../Assets/Music/*.mp3', {
   eager: true,
   query: '?url',
@@ -157,7 +159,8 @@ export class LevelMusicCycle implements LevelMusicHandle {
       this.playCurrentTrack();
     });
 
-    if (!this.sound.play()) {
+    if (!playSoundWhenReady(this.sound, this.scene.sound)) {
+      if (isSoundManagerLocked(this.scene.sound)) return;
       this.sound.destroy();
       this.sound = undefined;
     }

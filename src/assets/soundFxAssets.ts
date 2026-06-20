@@ -1,4 +1,5 @@
 import type { CharacterId, EnemyType } from '../types/game';
+import { isSoundManagerLocked, playSoundWhenReady } from '../utils/audioUnlock';
 
 export type BossLoopSfxId = 'boss' | 'boss2';
 
@@ -113,8 +114,8 @@ function playManagedOneShot(
       track.activeSounds.splice(index, 1);
     }
   });
-  if (!sound.play()) {
-    sound.destroy();
+  if (!playSoundWhenReady(sound, scene.sound)) {
+    if (isSoundManagerLocked(scene.sound)) return;
     const index = track.activeSounds.indexOf(sound);
     if (index >= 0) {
       track.activeSounds.splice(index, 1);
@@ -363,15 +364,19 @@ export function acquireEnemyLoopSfx(
   if (existing) {
     if (existing.holders.has(holder)) return;
     existing.holders.add(holder);
-    if (!existing.sound.isPlaying && !existing.sound.play()) {
-      existing.holders.delete(holder);
+    if (!existing.sound.isPlaying && !playSoundWhenReady(existing.sound, scene.sound)) {
+      if (!isSoundManagerLocked(scene.sound)) {
+        existing.holders.delete(holder);
+      }
     }
     return;
   }
 
   const sound = scene.sound.add(key, { loop: true, volume, rate });
-  if (!sound.play()) {
-    sound.destroy();
+  if (!playSoundWhenReady(sound, scene.sound)) {
+    if (isSoundManagerLocked(scene.sound)) {
+      map.set(key, { sound, holders: new Set([holder]) });
+    }
     return;
   }
   map.set(key, { sound, holders: new Set([holder]) });
@@ -541,8 +546,8 @@ export function playIntroSfxOnce(
   if (onComplete) {
     sound.once('complete', onComplete);
   }
-  if (!sound.play()) {
-    sound.destroy();
+  if (!playSoundWhenReady(sound, scene.sound)) {
+    if (isSoundManagerLocked(scene.sound)) return sound;
     return undefined;
   }
   return sound;
@@ -561,8 +566,8 @@ export function startMenuBackgroundSfx(scene: Phaser.Scene): Phaser.Sound.BaseSo
     loop: true,
     volume: MENU_BACKGROUND_SFX_VOLUME,
   });
-  if (!sound.play()) {
-    sound.destroy();
+  if (!playSoundWhenReady(sound, scene.sound)) {
+    if (isSoundManagerLocked(scene.sound)) return sound;
     return undefined;
   }
   return sound;
