@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="MIMU VS MONSTER RUMBLE — survive waves of Halloween monsters, defeat bosses, and climb the leaderboard." />
+    <meta name="theme-color" content="#1a0a2e" />
+    <meta property="og:title" content="MIMU VS MONSTER RUMBLE" />
+    <meta property="og:description" content="Survive the Rumble. Be the Legend." />
+    <meta property="og:type" content="website" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;600;700&family=Orbitron:wght@700;900&display=swap"
+      rel="stylesheet"
+    />
+    <title>MIMU VS MONSTER RUMBLE</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        overflow: hidden;
+        background: #000000;
+        touch-action: none;
+        -webkit-tap-highlight-color: transparent;
+      }
+      #game-container {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        height: 100dvh;
+        background: #000000;
+      }
+      #game-container canvas {
+        display: block;
+      }
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        background: #1a0a2e;
+        color: #ffc857;
+        font-family: 'Orbitron', system-ui, sans-serif;
+        letter-spacing: 0.08em;
+        z-index: 1;
+        transition: opacity 0.4s ease;
+      }
+      #boot-loader.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #boot-loader p {
+        font-size: 0.85rem;
+        opacity: 0.85;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot-loader" aria-live="polite">
+      <strong>MIMU VS MONSTER RUMBLE</strong>
+      <p>Loading assets…</p>
+    </div>
+    <div id="game-container" tabindex="0"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
