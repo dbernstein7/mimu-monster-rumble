@@ -108,7 +108,18 @@ function ensureStyles(): void {
 
 /** Remove any leftover auth overlay from the DOM (safe to call anytime). */
 export function destroyAuthFormOverlay(): void {
-  document.getElementById(FORM_ID)?.remove();
+  document.querySelectorAll(`#${FORM_ID}`).forEach((node) => node.remove());
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {
+    active.blur();
+  }
+}
+
+function blurFocusedInput(): void {
+  const active = document.activeElement;
+  if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {
+    active.blur();
+  }
 }
 
 export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): AuthFormHandle {
@@ -172,7 +183,11 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
 
   root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
   document.body.appendChild(root);
-  window.setTimeout(() => emailInput.focus(), 0);
+  const focusTimer = window.setTimeout(() => {
+    if (document.getElementById(FORM_ID)) {
+      emailInput.focus();
+    }
+  }, 0);
 
   let mode: AuthFormMode = initialMode;
 
@@ -230,6 +245,8 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
       syncMode();
     },
     destroy: () => {
+      window.clearTimeout(focusTimer);
+      blurFocusedInput();
       destroyAuthFormOverlay();
     },
   };

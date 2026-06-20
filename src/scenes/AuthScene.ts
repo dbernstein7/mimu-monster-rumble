@@ -28,6 +28,7 @@ export default class AuthScene extends Phaser.Scene {
   private authForm?: AuthFormHandle;
   private tabButtons: Phaser.GameObjects.Text[] = [];
   private fromLogout = false;
+  private switchingScene = false;
 
   constructor() {
     super({ key: 'AuthScene' });
@@ -37,9 +38,11 @@ export default class AuthScene extends Phaser.Scene {
     this.nextScene = data.next ?? 'MainMenuScene';
     this.mode = data.mode ?? 'login';
     this.fromLogout = data.fromLogout ?? false;
+    this.switchingScene = false;
   }
 
   create(): void {
+    destroyAuthFormOverlay();
     this.input.keyboard?.clearCaptures();
 
     drawMenuBackdrop(this);
@@ -73,8 +76,11 @@ export default class AuthScene extends Phaser.Scene {
       this.createTabButton(GAME_WIDTH / 2 + 90, 210, 'LOG IN', () => this.switchMode('login'));
       this.syncTabColors();
 
-      this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
-      this.authForm.setMode(this.mode);
+      this.time.delayedCall(0, () => {
+        if (!this.scene.isActive()) return;
+        this.authForm = mountAuthForm(this.mode, () => void this.handleSubmit());
+        this.authForm.setMode(this.mode);
+      });
     }
 
     const signedIn = !this.fromLogout && !!getCurrentUser();
@@ -91,14 +97,12 @@ export default class AuthScene extends Phaser.Scene {
     }
 
     createStyledButton(this, GAME_WIDTH / 2, signedIn ? 672 : 610, '← BACK', () => this.leaveScene(), 220);
-
-    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.teardownAuthForm());
-    this.events.once(Phaser.Scenes.Events.DESTROY, () => this.teardownAuthForm());
   }
 
   shutdown(): void {
     this.teardownAuthForm();
     this.tabButtons = [];
+    this.switchingScene = false;
   }
 
   private teardownAuthForm(): void {
@@ -107,14 +111,24 @@ export default class AuthScene extends Phaser.Scene {
     destroyAuthFormOverlay();
   }
 
-  private leaveScene(): void {
+  private switchToScene(sceneKey: string): void {
+    if (this.switchingScene) return;
+    this.switchingScene = true;
     this.teardownAuthForm();
-    this.scene.start(this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene);
+    this.time.delayedCall(0, () => {
+      if (!this.scene.isActive()) return;
+      this.scene.start(sceneKey);
+    });
+  }
+
+  private leaveScene(): void {
+    const target =
+      this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene;
+    this.switchToScene(target);
   }
 
   private goToNextScene(): void {
-    this.teardownAuthForm();
-    this.scene.start(this.nextScene);
+    this.switchToScene(this.nextScene);
   }
 
   private switchMode(mode: 'login' | 'register'): void {

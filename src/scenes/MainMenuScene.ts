@@ -36,6 +36,7 @@ import {
   PLAY_BUTTON_TEXTURE_KEY,
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
+import { destroyAuthFormOverlay } from '../ui/authForm';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, unlockMobileAudio } from '../utils/audioUnlock';
@@ -65,12 +66,15 @@ export default class MainMenuScene extends Phaser.Scene {
   private introLoopTimer?: Phaser.Time.TimerEvent;
   private introSound?: Phaser.Sound.BaseSound;
   private menuBackgroundSound?: Phaser.Sound.BaseSound;
+  private openingAuth = false;
 
   constructor() {
     super({ key: 'MainMenuScene' });
   }
 
   create(): void {
+    destroyAuthFormOverlay();
+    this.openingAuth = false;
     this.silenceGameplayAudio();
 
     this.inputManager = new InputManager(this);
@@ -185,11 +189,11 @@ export default class MainMenuScene extends Phaser.Scene {
         authButtonY,
         SIGN_IN_BUTTON_TEXTURE_KEY,
         menuButtonWidth,
-        () => this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'login' }),
+        () => this.openAuthScene('login'),
       );
     } else {
       this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN / REGISTER', () => {
-        this.scene.start('AuthScene', { next: 'MainMenuScene', mode: 'login' });
+        this.openAuthScene('login');
       });
     }
 
@@ -307,19 +311,29 @@ export default class MainMenuScene extends Phaser.Scene {
 
   private handleLogout(): void {
     this.stopMenuAudio();
-    this.scene.start('AuthScene', {
-      next: 'MainMenuScene',
-      mode: 'login',
-      fromLogout: true,
-    });
+    this.openAuthScene('login', true);
     void logout().catch(() => undefined);
+  }
+
+  private openAuthScene(
+    mode: 'login' | 'register',
+    fromLogout = false,
+    nextScene = 'MainMenuScene',
+  ): void {
+    if (this.openingAuth) return;
+    this.openingAuth = true;
+    destroyAuthFormOverlay();
+    this.time.delayedCall(0, () => {
+      if (!this.scene.isActive()) return;
+      this.scene.start('AuthScene', { next: nextScene, mode, fromLogout });
+    });
   }
 
   private startGame(): void {
     unlockMobileAudio(this.game);
 
     if (!isSignedInAccount() || !getCurrentUser()) {
-      this.scene.start('AuthScene', { next: 'CharacterSelectScene', mode: 'login' });
+      this.openAuthScene('login', false, 'CharacterSelectScene');
       return;
     }
 
