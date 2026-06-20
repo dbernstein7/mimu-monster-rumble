@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
+import { isMobileTouchDevice } from '../utils/device';
 
 export type AuthFormMode = 'login' | 'register';
 
@@ -23,6 +24,16 @@ const OVERLAY_CLASS = 'mimu-auth-overlay';
 const FORM_CLASS = 'mimu-auth-form';
 const LEGACY_FORM_ID = 'mimu-auth-form';
 
+/** Matches AuthScene panel layout (drawPanel at y=80, 640×520). */
+const AUTH_PANEL = {
+  x: GAME_WIDTH / 2 - 320,
+  y: 80,
+  width: 640,
+  height: 520,
+  /** Space reserved for ACCOUNT title + subtitle before form content. */
+  contentTop: 195,
+} as const;
+
 function submitLabel(mode: AuthFormMode): string {
   return mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
 }
@@ -37,16 +48,28 @@ function ensureStyles(): void {
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.85rem;
+      justify-content: center;
+      gap: 0.75rem;
       z-index: 20;
       pointer-events: auto;
       transform: translate(-50%, -50%);
-      max-width: 92vw;
+      width: min(420px, 88%);
+      box-sizing: border-box;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile {
+      width: min(520px, 94%);
+      gap: 0.6rem;
+      max-height: min(72vh, 520px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+      padding: 0.15rem 0;
     }
     .mimu-auth-tabs {
       display: flex;
-      gap: 2.5rem;
-      margin-bottom: 0.15rem;
+      gap: 2rem;
+      justify-content: center;
+      width: 100%;
     }
     .mimu-auth-tabs button {
       border: none;
@@ -56,14 +79,14 @@ function ensureStyles(): void {
       font-weight: 700;
       color: #a89bc4;
       cursor: pointer;
-      padding: 0.25rem 0.5rem;
+      padding: 0.35rem 0.65rem;
+      min-height: 36px;
     }
     .mimu-auth-tabs button.active {
       color: #ffc857;
     }
     .${FORM_CLASS} {
-      width: 420px;
-      max-width: 42vw;
+      width: 100%;
       display: flex;
       flex-direction: column;
       gap: 0.65rem;
@@ -135,13 +158,15 @@ function ensureStyles(): void {
       border: 2px solid rgba(168, 155, 196, 0.45);
       border-radius: 12px;
       padding: 0.72rem 1.5rem;
-      min-width: 220px;
+      width: 100%;
+      max-width: 320px;
       font-family: 'Exo 2', system-ui, sans-serif;
       font-size: 18px;
       font-weight: 700;
       color: #ffffff;
       background: rgba(46, 26, 74, 0.92);
       cursor: pointer;
+      box-sizing: border-box;
     }
     .mimu-auth-action:hover {
       border-color: #ffc857;
@@ -149,7 +174,32 @@ function ensureStyles(): void {
     .mimu-auth-action.continue {
       border-color: rgba(46, 213, 115, 0.55);
       background: rgba(20, 80, 50, 0.85);
-      min-width: 280px;
+      max-width: 360px;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-tabs button {
+      font-size: 14px;
+      min-height: 44px;
+      padding: 0.5rem 1rem;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} {
+      padding: 0.85rem 0.95rem 1rem;
+      gap: 0.55rem;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} label {
+      font-size: 0.72rem;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} input {
+      padding: 0.85rem 0.9rem;
+      min-height: 48px;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-hint {
+      font-size: 0.74rem;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit,
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action {
+      min-height: 48px;
+      font-size: 1rem;
+      max-width: none;
     }
   `;
   document.head.appendChild(style);
@@ -160,17 +210,27 @@ function positionAuthOverlay(root: HTMLElement, scene: Phaser.Scene): void {
   const canvas = scene.game.canvas;
   if (!container || !canvas) return;
 
+  const mobile = isMobileTouchDevice();
+  root.classList.toggle('mimu-auth-overlay--mobile', mobile);
+
   const containerRect = container.getBoundingClientRect();
   const canvasRect = canvas.getBoundingClientRect();
-  const gameX = GAME_WIDTH / 2;
-  const gameY = 430;
-  const left =
-    canvasRect.left - containerRect.left + (gameX / GAME_WIDTH) * canvasRect.width;
-  const top =
-    canvasRect.top - containerRect.top + (gameY / GAME_HEIGHT) * canvasRect.height;
 
-  root.style.left = `${left}px`;
-  root.style.top = `${top}px`;
+  const panelLeft = (AUTH_PANEL.x / GAME_WIDTH) * canvasRect.width;
+  const panelTop = (AUTH_PANEL.y / GAME_HEIGHT) * canvasRect.height;
+  const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
+  const panelHeight = (AUTH_PANEL.height / GAME_HEIGHT) * canvasRect.height;
+  const contentTop = (AUTH_PANEL.contentTop / GAME_HEIGHT) * canvasRect.height;
+  const contentBottom = panelTop + panelHeight;
+
+  const centerX = panelLeft + panelWidth / 2;
+  const centerY = contentTop + (contentBottom - contentTop) / 2;
+
+  root.style.left = `${canvasRect.left - containerRect.left + centerX}px`;
+  root.style.top = `${canvasRect.top - containerRect.top + centerY}px`;
+  root.style.width = mobile
+    ? `${Math.min(panelWidth * 0.94, canvasRect.width * 0.92)}px`
+    : `${Math.min(420, panelWidth * 0.88)}px`;
 }
 
 /** Remove auth HTML so it never blocks canvas clicks after leaving the account page. */
@@ -292,6 +352,7 @@ export function mountAuthForm(
   overlay.append(tabs, root, continueBtn, backBtn);
   container.appendChild(overlay);
   positionAuthOverlay(overlay, scene);
+  requestAnimationFrame(() => positionAuthOverlay(overlay, scene));
 
   let mode: AuthFormMode = initialMode;
 
@@ -358,6 +419,8 @@ export function mountAuthForm(
   };
   scene.scale.on('resize', syncPosition);
   window.addEventListener('resize', syncPosition);
+  window.visualViewport?.addEventListener('resize', syncPosition);
+  window.visualViewport?.addEventListener('scroll', syncPosition);
 
   let destroyed = false;
   const destroyForm = (): void => {
@@ -365,6 +428,8 @@ export function mountAuthForm(
     destroyed = true;
     scene.scale.off('resize', syncPosition);
     window.removeEventListener('resize', syncPosition);
+    window.visualViewport?.removeEventListener('resize', syncPosition);
+    window.visualViewport?.removeEventListener('scroll', syncPosition);
     overlay.remove();
   };
 
