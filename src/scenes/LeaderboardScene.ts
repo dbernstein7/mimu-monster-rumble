@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { fetchCoinLeaderboard, fetchLeaderboard, isFirebaseEnabled } from '../services/firebase';
+import { loadUserProfile } from '../services/userProfile';
 import { probeLiveLeaderboard } from '../services/leaderboardApi';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
@@ -82,7 +83,7 @@ export default class LeaderboardScene extends Phaser.Scene {
       .setDepth(2);
 
     this.tabCoinsLabel = this.add
-      .text(coinsX, tabY, 'TOP COINS', {
+      .text(coinsX, tabY, 'TOTAL COINS', {
         fontFamily: UI_FONTS.body,
         fontSize: '15px',
         color: '#a89bc4',
@@ -164,7 +165,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         : [
             { x: 110, text: '#' },
             { x: 150, text: 'ACCOUNT' },
-            { x: 900, text: 'COINS' },
+            { x: 900, text: 'TOTAL' },
           ];
 
     if (this.headerLabels.length !== configs.length) {
@@ -214,10 +215,15 @@ export default class LeaderboardScene extends Phaser.Scene {
       return;
     }
 
+    if (isFirebaseEnabled()) {
+      await loadUserProfile();
+    }
     const entries = await fetchCoinLeaderboard();
     const liveCoins = isFirebaseEnabled();
     this.statusText?.setText(
-      liveCoins ? 'Ranked by lifetime coins banked to your wallet' : 'Showing wallets saved on this device',
+      liveCoins
+        ? 'All coins you earn across runs — added to your wallet when a run ends'
+        : 'Showing wallets saved on this device',
     );
     this.loadingText?.destroy();
     this.loadingText = undefined;
@@ -229,7 +235,7 @@ export default class LeaderboardScene extends Phaser.Scene {
           .text(
             GAME_WIDTH / 2,
             GAME_HEIGHT / 2,
-            'No coin hoarders yet — bank coins after a run!',
+            'No totals yet — finish a run while signed in and coins stack up here!',
             subtitleStyle('18px'),
           )
           .setOrigin(0.5),

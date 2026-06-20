@@ -21,6 +21,8 @@ import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '..
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { MAIN_MENU_INPUT_GUARD_MS } from '../utils/sceneNav';
+import { getCurrentUser } from '../services/firebase';
+import { bankRunCoins } from '../services/userProfile';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
@@ -250,6 +252,20 @@ export default class GameScene extends Phaser.Scene {
 
     this.stopAllGameAudio();
     this.abilitySystem?.cancelActiveEffects(this.player);
+    const runCoins = this.player?.coins ?? 0;
+    void this.finishExitToMainMenu(runCoins);
+  }
+
+  private async finishExitToMainMenu(runCoins: number): Promise<void> {
+    const user = getCurrentUser();
+    if (user && runCoins > 0) {
+      try {
+        await bankRunCoins(runCoins);
+      } catch {
+        // Still return to menu if banking fails.
+      }
+    }
+
     this.input.resetPointers();
     this.scene.start('MainMenuScene', { menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS });
   }

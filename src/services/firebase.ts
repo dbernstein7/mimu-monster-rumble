@@ -309,11 +309,13 @@ export async function syncCoinLeaderboardEntry(profile: CoinLeaderboardEntry): P
 }
 
 export async function fetchCoinLeaderboard(): Promise<CoinLeaderboardEntry[]> {
+  let entries: CoinLeaderboardEntry[] = [];
+
   if (initFirebase() && db) {
     try {
       const q = query(collection(db, 'coinLeaderboard'), orderBy('totalCoins', 'desc'), limit(50));
       const snap = await getDocs(q);
-      const entries = snap.docs.map((d) => {
+      entries = snap.docs.map((d) => {
         const data = d.data();
         return {
           userId: String(data.userId ?? d.id),
@@ -322,14 +324,36 @@ export async function fetchCoinLeaderboard(): Promise<CoinLeaderboardEntry[]> {
           updatedAt: Number(data.updatedAt) || Date.now(),
         } satisfies CoinLeaderboardEntry;
       });
-      if (entries.length > 0) return entries;
     } catch {
-      // Fall through to local wallets.
+      entries = [];
     }
   }
 
-  const { getLocalCoinLeaderboardEntries } = await import('./userProfile');
-  return getLocalCoinLeaderboardEntries();
+  if (entries.length === 0 && !initFirebase()) {
+    const { getLocalCoinLeaderboardEntries } = await import('./userProfile');
+    return getLocalCoinLeaderboardEntries();
+  }
+
+  const { getCachedProfile } = await import('./userProfile');
+  const user = getCurrentUser();
+  const profile = getCachedProfile();
+  if (user && profile && profile.totalCoins > 0) {
+    const existing = entries.find((entry) => entry.userId === user.userId);
+    const walletRow: CoinLeaderboardEntry = {
+      userId: user.userId,
+      username: profile.username,
+      totalCoins: profile.totalCoins,
+      updatedAt: profile.updatedAt,
+    };
+    if (!existing || walletRow.totalCoins > existing.totalCoins) {
+      entries = entries.filter((entry) => entry.userId !== user.userId);
+      entries.push(walletRow);
+      entries.sort((a, b) => b.totalCoins - a.totalCoins || b.updatedAt - a.updatedAt);
+      entries = entries.slice(0, 50);
+    }
+  }
+
+  return entries;
 }
 
 export function getCurrentUser(): { userId: string; username: string } | null {

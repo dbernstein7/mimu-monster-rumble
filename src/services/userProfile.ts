@@ -178,12 +178,15 @@ export async function bankRunCoins(coinsEarned: number): Promise<CoinBankResult>
 
       const updated = await readFirestoreProfile(db, user.userId);
       const totalCoins = updated?.totalCoins ?? earned;
-      cacheProfile({
+      const profile = {
         userId: user.userId,
         username: user.username,
         totalCoins,
         updatedAt: Date.now(),
-      });
+      };
+      cacheProfile(profile);
+      const { syncCoinLeaderboardEntry } = await import('./firebase');
+      await syncCoinLeaderboardEntry(profile);
       return { banked: earned, totalCoins, target: 'firebase' };
     } catch {
       return { banked: 0, totalCoins: cachedProfile?.totalCoins ?? 0, target: 'firebase' };
