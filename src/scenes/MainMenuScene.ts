@@ -31,7 +31,7 @@ import {
 } from '../assets/uiAssets';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
-import { onGameAudioUnlocked } from '../utils/audioUnlock';
+import { onGameAudioUnlocked, unlockMobileAudio } from '../utils/audioUnlock';
 import {
   hasIntroSfx,
   INTRO_SFX_GAP_MS,
@@ -235,6 +235,7 @@ export default class MainMenuScene extends Phaser.Scene {
     this.startMenuAudio();
     onGameAudioUnlocked(() => {
       if (!this.scene.isActive()) return;
+      if (this.menuBackgroundSound?.isPlaying) return;
       this.startMenuAudio();
     }, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.stopMenuAudio());
@@ -289,6 +290,7 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   private startGame(): void {
+    unlockMobileAudio(this.game);
     resetRunState(this.registry);
 
     if (!getCurrentUser()) {
@@ -327,7 +329,10 @@ export default class MainMenuScene extends Phaser.Scene {
       y,
       textureKey,
       displayWidth,
-      onClick,
+      () => {
+        unlockMobileAudio(this.game);
+        onClick();
+      },
       50,
       MAIN_MENU_BUTTON_IDLE_ALPHA,
       MAIN_MENU_BUTTON_HIGHLIGHT_ALPHA,
@@ -343,7 +348,10 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   private addMenuButton(x: number, y: number, label: string, onClick: () => void): void {
-    const button = createStyledButton(this, x, y, label, onClick);
+    const button = createStyledButton(this, x, y, label, () => {
+      unlockMobileAudio(this.game);
+      onClick();
+    });
     button.bg.setAlpha(MAIN_MENU_BUTTON_IDLE_ALPHA);
     button.label.setAlpha(MAIN_MENU_BUTTON_HIGHLIGHT_ALPHA);
     this.menuUi.add([button.bg, button.label, button.hit]);

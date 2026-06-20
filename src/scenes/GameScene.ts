@@ -17,7 +17,7 @@ import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
 import { isMobileTouchDevice } from '../utils/device';
-import { onGameAudioUnlocked } from '../utils/audioUnlock';
+import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
@@ -178,11 +178,26 @@ export default class GameScene extends Phaser.Scene {
 
     this.spawnWave();
     this.startLevelMusic();
-    onGameAudioUnlocked(() => {
-      if (!this.scene.isActive() || this.bossActive || this.levelTransitioning) return;
-      this.stopLevelMusic();
-      this.startLevelMusic();
-    }, this);
+    onGameAudioUnlocked(() => this.ensureLevelMusicPlaying(), this);
+  }
+
+  private levelMusicTrackKeys(): string[] {
+    return [LEVEL_1_MUSIC_KEY, LEVEL_1_2_MUSIC_KEY, LEVEL_2_MUSIC_KEY, LEVEL_2_2_MUSIC_KEY];
+  }
+
+  private isLevelMusicPlaying(): boolean {
+    const tracks = new Set(this.levelMusicTrackKeys());
+    return this.sound.getAllPlaying().some((sound) => tracks.has(sound.key));
+  }
+
+  private ensureLevelMusicPlaying(): void {
+    if (!this.scene.isActive() || this.bossActive || this.levelTransitioning) return;
+    const shouldPlay =
+      (this.levelIndex === 0 && hasLevel1Music(this)) ||
+      (this.levelIndex === 1 && hasLevel2Music(this));
+    if (!shouldPlay || this.isLevelMusicPlaying()) return;
+    this.stopLevelMusic();
+    this.startLevelMusic();
   }
 
   private drawArena(level: LevelConfig): void {
@@ -797,10 +812,17 @@ export default class GameScene extends Phaser.Scene {
   private playBossMusic(): void {
     if (!hasBossMusic(this)) return;
 
+    unlockMobileAudio(this.game);
     this.stopBossMusic();
     const music = this.sound.add(BOSS_MUSIC_KEY, { loop: false, volume: BOSS_MUSIC_INTRO_VOLUME });
     this.bossMusic = music as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
-    music.play({ seek: BOSS_MUSIC_START_SEC });
+    if (!music.play({ seek: BOSS_MUSIC_START_SEC })) {
+      if (!isSoundManagerLocked(this.sound)) {
+        music.destroy();
+        this.bossMusic = undefined;
+      }
+      return;
+    }
 
     const volume = { value: BOSS_MUSIC_INTRO_VOLUME };
     this.bossMusicVolumeTween = this.tweens.add({

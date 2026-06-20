@@ -65,8 +65,10 @@ const config: Phaser.Types.Core.GameConfig = {
 
 void loadHeadlineFont().then(() => {
   const game = new Phaser.Game(config);
-  game.sound.pauseOnBlur = !isMobileTouchDevice();
-  bindGameAudioUnlock(game);
+  if (isMobileTouchDevice()) {
+    game.sound.pauseOnBlur = false;
+    bindGameAudioUnlock(game);
+  }
   const gameContainer = document.getElementById('game-container');
 
   bindMobileViewport(game);

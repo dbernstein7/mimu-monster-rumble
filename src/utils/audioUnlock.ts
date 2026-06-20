@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
+import { isMobileTouchDevice } from './device';
 
 const unlockListeners = new Set<() => void>();
+let mobileAudioReady = false;
 
 export function onGameAudioUnlocked(callback: () => void, scene?: Phaser.Scene): () => void {
   unlockListeners.add(callback);
@@ -25,40 +27,94 @@ export function playSoundWhenReady(
   sound: Phaser.Sound.BaseSound,
   manager: Phaser.Sound.BaseSoundManager,
 ): boolean {
+  if (isMobileTouchDevice()) {
+    unlockMobileAudio(manager.game);
+  }
+
   if (sound.play()) return true;
   if (isSoundManagerLocked(manager)) return false;
   sound.destroy();
   return false;
 }
 
-function resumeAudioContext(manager: Phaser.Sound.BaseSoundManager): void {
-  const ctx = (manager as Phaser.Sound.WebAudioSoundManager).context;
-  if (ctx && (ctx.state === 'suspended' || ctx.state === 'interrupted')) {
-    void ctx.resume();
+function getWebAudioContext(manager: Phaser.Sound.BaseSoundManager): AudioContext | undefined {
+  return (manager as Phaser.Sound.WebAudioSoundManager).context;
+}
+
+function playSilentKick(ctx: AudioContext): void {
+  try {
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch {
+    // Ignore — best-effort iOS unlock kick.
   }
 }
 
-/** Resume Web Audio / HTML5 audio after the first explicit user interaction. */
+/**
+ * Resume mobile Web Audio inside the current user gesture and re-trigger pending playback.
+ * No-op on desktop.
+ */
+export function unlockMobileAudio(game: Phaser.Game): void {
+  if (!isMobileTouchDevice()) return;
+
+  const manager = game.sound;
+  const ctx = getWebAudioContext(manager);
+
+  const kickPlayback = (): void => {
+    notifyUnlocked();
+  };
+
+  if (ctx) {
+    playSilentKick(ctx);
+    try {
+      void ctx.resume();
+    } catch {
+      // Ignore — resume may throw if already running.
+    }
+
+    if (ctx.state === 'running') {
+      mobileAudioReady = true;
+    }
+
+    // iOS needs follow-up playback kicked off while the gesture is still active.
+    kickPlayback();
+
+    void ctx.resume().then(() => {
+      mobileAudioReady = true;
+      kickPlayback();
+    }).catch(() => {});
+    return;
+  }
+
+  manager.unlock();
+  if (!manager.locked) {
+    mobileAudioReady = true;
+  }
+  kickPlayback();
+}
+
+/** Resume Web Audio after the first explicit user interaction (mobile only). */
 export function bindGameAudioUnlock(game: Phaser.Game): void {
+  if (!isMobileTouchDevice()) return;
+
   const manager = game.sound;
 
   manager.on(Phaser.Sound.Events.UNLOCKED, () => {
-    resumeAudioContext(manager);
+    mobileAudioReady = true;
     notifyUnlocked();
   });
 
-  const nudge = (): void => {
-    resumeAudioContext(manager);
+  const onGesture = (): void => {
+    unlockMobileAudio(game);
   };
 
-  game.events.on(Phaser.Input.Events.POINTER_DOWN, nudge);
+  document.body.addEventListener('touchstart', onGesture, { passive: true, capture: true });
+  document.body.addEventListener('touchend', onGesture, { passive: true, capture: true });
+}
 
-  const onFirstInteraction = (): void => {
-    nudge();
-    manager.unlock();
-  };
-
-  document.body.addEventListener('touchstart', onFirstInteraction, { passive: true, capture: true });
-  document.body.addEventListener('touchend', onFirstInteraction, { passive: true, capture: true });
-  document.body.addEventListener('mousedown', onFirstInteraction, { capture: true });
+export function isMobileAudioReady(): boolean {
+  return mobileAudioReady;
 }

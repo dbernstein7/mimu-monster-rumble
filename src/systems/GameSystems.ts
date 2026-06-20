@@ -20,6 +20,7 @@ import {
   hasExplosionSfx,
   PRIMARY_ABILITY_EXPLOSION_SFX_DURATION_MS,
 } from '../assets/soundFxAssets';
+import { playSoundWhenReady } from '../utils/audioUnlock';
 import { BOMB_RADIUS, POWERUPS } from '../config/powerups';
 
 type KillHandler = (enemy: Enemy) => void;
@@ -100,7 +101,11 @@ export class AbilitySystem {
       volume: EXPLOSION_SFX_VOLUME,
     });
     this.explosionSound = sound;
-    sound.play();
+    if (!playSoundWhenReady(sound, this.scene.sound)) {
+      if (!this.explosionSound.isPlaying) {
+        this.explosionSound = undefined;
+      }
+    }
     this.explosionStopTimer = this.scene.time.delayedCall(durationMs, () => {
       this.stopExplosionSfx();
     });

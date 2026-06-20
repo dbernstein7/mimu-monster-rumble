@@ -10,6 +10,7 @@ import {
   UI_FONTS,
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
+import { unlockMobileAudio } from '../utils/audioUnlock';
 import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
   applyRoundedCardMask,
@@ -237,6 +238,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   private startWithCharacter(id: CharacterId): void {
+    unlockMobileAudio(this.game);
     this.stopChooseMimuAudio();
 
     if (!this.continueRun) {

@@ -9,6 +9,7 @@ import type { CharacterId } from '../types/game';
 import type { Player } from '../entities/Player';
 import { UI_COLORS } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
+import { unlockMobileAudio } from '../utils/audioUnlock';
 
 const EDGE = 22;
 const JOYSTICK_MAX_DRAG = 62;
@@ -119,6 +120,7 @@ export class MobileControls {
 
     const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled || !pointer.isDown) return;
+      unlockMobileAudio(this.scene.game);
       if (this.joystickPointerId !== null) return;
       if (isOnPowerButton(pointer.x, pointer.y)) return;
 
@@ -193,12 +195,14 @@ export class MobileControls {
   }
 
   private queueAbilityPress(): void {
+    unlockMobileAudio(this.scene.game);
     if (!this.enabled || !this.player?.canUseAbility()) return;
     this.abilityQueued = true;
     this.flashButton(this.abilityBtn);
   }
 
   private queueSecondaryPress(): void {
+    unlockMobileAudio(this.scene.game);
     if (!this.enabled || !this.player?.canUseSecondaryProjectile()) return;
     this.secondaryQueued = true;
     this.flashButton(this.secondaryBtn);
