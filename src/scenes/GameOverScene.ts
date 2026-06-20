@@ -27,6 +27,12 @@ import type { CharacterId } from '../types/game';
 import { resetRunState } from '../utils/runState';
 import { returnToMainMenu } from '../utils/sceneNav';
 
+function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): string {
+  const second = getCharacter(mimu2).name;
+  if (!mimu1 || mimu1 === mimu2) return second;
+  return `${getCharacter(mimu1).name}  ·  ${second}`;
+}
+
 export default class GameOverScene extends Phaser.Scene {
   constructor() {
     super({ key: 'GameOverScene' });
@@ -36,14 +42,18 @@ export default class GameOverScene extends Phaser.Scene {
     score?: number;
     coins?: number;
     characterId?: CharacterId;
+    runMimu1?: CharacterId;
     levelIndex?: number;
     won?: boolean;
   }): void {
     const score = data.score ?? 0;
     const coins = data.coins ?? 0;
     const won = data.won ?? false;
-    const character = getCharacter(data.characterId ?? 'voidWarrior');
+    const characterId = data.characterId ?? 'voidWarrior';
+    const runMimu1 = data.runMimu1;
+    const character = getCharacter(characterId);
     const level = getLevel(data.levelIndex ?? 0);
+    const mimuLine = formatRunMimuLine(runMimu1, characterId);
 
     this.cameras.main.setBackgroundColor('#000000');
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000).setDepth(-20);
@@ -80,7 +90,7 @@ export default class GameOverScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 310, `${character.name}  ·  ${level.name}`, subtitleStyle('15px'))
+      .text(GAME_WIDTH / 2, 310, `${mimuLine}  ·  ${level.name}`, subtitleStyle('15px'))
       .setOrigin(0.5);
 
     const statusText = this.add
@@ -94,7 +104,15 @@ export default class GameOverScene extends Phaser.Scene {
 
     const user = getCurrentUser();
     if (user) {
-      void this.saveRunResults(statusText, user, score, coins, character.name, level.name);
+      void this.saveRunResults(
+        statusText,
+        user,
+        score,
+        coins,
+        runMimu1 ? getCharacter(runMimu1).name : character.name,
+        runMimu1 && runMimu1 !== characterId ? character.name : undefined,
+        level.name,
+      );
     } else {
       statusText.setText('Sign in to bank coins and save scores');
       statusText.setColor('#a89bc4');
@@ -131,6 +149,7 @@ export default class GameOverScene extends Phaser.Scene {
     score: number,
     coins: number,
     characterName: string,
+    character2Name: string | undefined,
     levelName: string,
   ): Promise<void> {
     const parts: string[] = [];
@@ -154,6 +173,7 @@ export default class GameOverScene extends Phaser.Scene {
         username: user.username,
         score,
         character: characterName,
+        character2: character2Name,
         level: levelName,
         timestamp: Date.now(),
       });

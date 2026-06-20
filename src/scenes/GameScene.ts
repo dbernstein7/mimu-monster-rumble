@@ -23,6 +23,7 @@ import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { MAIN_MENU_INPUT_GUARD_MS } from '../utils/sceneNav';
 import { getCurrentUser } from '../services/firebase';
 import { bankRunCoins } from '../services/userProfile';
+import { RUN_MIMU1_KEY } from '../utils/runState';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
@@ -737,6 +738,7 @@ export default class GameScene extends Phaser.Scene {
       this.levelTransitioning = true;
       this.registry.set('runScore', this.player.score);
       this.registry.set('runCoins', this.player.coins);
+      this.registry.set(RUN_MIMU1_KEY, this.characterId);
       this.registry.set('characterId', this.characterId);
 
       const fadeOut = this.add
@@ -794,6 +796,7 @@ export default class GameScene extends Phaser.Scene {
         score: this.player.score,
         coins: this.player.coins,
         characterId: this.characterId,
+        runMimu1: this.registry.get(RUN_MIMU1_KEY) as CharacterId | undefined,
         levelIndex: this.levelIndex,
         won,
       });

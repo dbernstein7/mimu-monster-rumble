@@ -14,6 +14,13 @@ import {
 } from '../ui/theme';
 import type { CoinLeaderboardEntry, LeaderboardEntry } from '../types/game';
 
+function formatScoreMimus(entry: LeaderboardEntry): string {
+  if (entry.character2) {
+    return `${entry.character} · ${entry.character2}`;
+  }
+  return entry.character;
+}
+
 type LeaderboardTab = 'scores' | 'coins';
 
 export default class LeaderboardScene extends Phaser.Scene {
@@ -159,7 +166,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         ? [
             { x: 110, text: '#' },
             { x: 150, text: 'PLAYER' },
-            { x: 520, text: 'MIMU' },
+            { x: 520, text: 'MIMUS' },
             { x: 900, text: 'SCORE' },
           ]
         : [
@@ -272,7 +279,12 @@ export default class LeaderboardScene extends Phaser.Scene {
           fontStyle: 'bold',
         }),
       );
-      container.add(this.add.text(520, y, entry.character, subtitleStyle('14px')));
+      container.add(
+        this.add.text(520, y, formatScoreMimus(entry), {
+          ...subtitleStyle('13px'),
+          wordWrap: { width: 340 },
+        }),
+      );
       container.add(
         this.add.text(900, y, formatScore(entry.score), {
           fontFamily: UI_FONTS.body,

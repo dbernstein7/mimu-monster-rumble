@@ -63,7 +63,10 @@ export interface LeaderboardEntry {
   userId: string;
   username: string;
   score: number;
+  /** Level 1 mimu (or only mimu if the run ended early). */
   character: string;
+  /** Level 2 mimu when the player finished both levels. */
+  character2?: string;
   level: string;
   timestamp: number;
 }

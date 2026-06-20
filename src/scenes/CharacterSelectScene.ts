@@ -20,7 +20,7 @@ import {
   MAIN_MENU_INPUT_GUARD_MS,
   MAIN_MENU_SCENE_KEY,
 } from '../utils/sceneNav';
-import { resetRunState } from '../utils/runState';
+import { resetRunState, RUN_MIMU1_KEY } from '../utils/runState';
 import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
   applyRoundedCardMask,
@@ -267,6 +267,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     if (!this.continueRun) {
       this.registry.remove('runScore');
       this.registry.remove('runCoins');
+      this.registry.remove(RUN_MIMU1_KEY);
     }
 
     this.registry.set('characterId', id);

@@ -26,6 +26,7 @@ export async function submitScoreToApi(entry: LeaderboardEntry): Promise<ApiSubm
       username: entry.username,
       score: entry.score,
       character: entry.character,
+      character2: entry.character2,
       level: entry.level,
       timestamp: entry.timestamp,
     }),
