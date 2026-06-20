@@ -25,21 +25,19 @@ const SHELL_CLASS = 'mimu-auth-shell';
 const FORM_CLASS = 'mimu-auth-form';
 const LEGACY_FORM_ID = 'mimu-auth-form';
 
-/** Matches AuthScene panel layout (drawPanel at y=80, 640×520). */
-const AUTH_PANEL = {
-  x: GAME_WIDTH / 2 - 320,
-  y: 80,
-  width: 640,
-  height: 520,
-  contentTop: 195,
+/** Matches AuthScene panel — ~78% of game width so it scales on every screen. */
+export const AUTH_PANEL = {
+  x: Math.round((GAME_WIDTH - GAME_WIDTH * 0.78) / 2),
+  y: 48,
+  width: Math.round(GAME_WIDTH * 0.78),
+  height: Math.round(GAME_HEIGHT * 0.84),
+  contentTop: 188,
 } as const;
 
 /** Game-space anchors for auth HTML (1280×720). */
-const AUTH_LAYOUT = {
-  /** Center of tabs + login form block — upper half of panel body. */
-  formCenterY: 310,
-  /** Back button sits near the bottom inside the panel frame. */
-  backY: 592,
+export const AUTH_LAYOUT = {
+  formCenterY: 302,
+  backY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
 } as const;
 
 function submitLabel(mode: AuthFormMode): string {
@@ -56,26 +54,44 @@ function ensureStyles(): void {
       inset: 0;
       z-index: 20;
       pointer-events: none;
+      --auth-ui-scale: 1;
     }
     .${OVERLAY_CLASS} {
       position: absolute;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 0.75rem;
+      gap: calc(0.75rem * var(--auth-ui-scale));
       pointer-events: auto;
       transform: translate(-50%, -50%);
-      width: min(420px, 88%);
       box-sizing: border-box;
     }
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile {
-      width: min(520px, 94%);
       gap: 0.6rem;
       max-height: min(72vh, 520px);
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
       padding: 0.15rem 0;
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-tabs button {
+      font-size: calc(15px * var(--auth-ui-scale));
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} {
+      padding: calc(1rem * var(--auth-ui-scale)) calc(1.1rem * var(--auth-ui-scale));
+      gap: calc(0.65rem * var(--auth-ui-scale));
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} input {
+      font-size: calc(16px * var(--auth-ui-scale));
+      padding: calc(0.72rem * var(--auth-ui-scale)) calc(0.85rem * var(--auth-ui-scale));
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} .mimu-auth-submit {
+      font-size: calc(1rem * var(--auth-ui-scale));
+      padding: calc(0.9rem * var(--auth-ui-scale)) calc(1rem * var(--auth-ui-scale));
+    }
+    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-action.mimu-auth-back {
+      font-size: calc(18px * var(--auth-ui-scale));
+      padding: calc(0.72rem * var(--auth-ui-scale)) calc(1.5rem * var(--auth-ui-scale));
     }
     .mimu-auth-tabs {
       display: flex;
@@ -172,7 +188,6 @@ function ensureStyles(): void {
       border: 2px solid rgba(168, 155, 196, 0.45);
       border-radius: 12px;
       padding: 0.72rem 1.5rem;
-      width: min(320px, 88%);
       font-family: 'Exo 2', system-ui, sans-serif;
       font-size: 18px;
       font-weight: 700;
@@ -258,18 +273,23 @@ function positionAuthUi(
   const canvasRect = canvas.getBoundingClientRect();
 
   const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
+  const canvasScale = canvasRect.width / GAME_WIDTH;
   const centerX = GAME_WIDTH / 2;
   const formCenter = gamePointToContainer(centerX, AUTH_LAYOUT.formCenterY, canvasRect, containerRect);
   const backCenter = gamePointToContainer(centerX, AUTH_LAYOUT.backY, canvasRect, containerRect);
 
+  const formWidth = panelWidth * (mobile ? 0.9 : 0.84);
+  const backWidth = panelWidth * 0.4;
+  const uiScale = mobile ? 1 : Math.min(1.4, Math.max(1, canvasScale * 1.05));
+
+  shell.style.setProperty('--auth-ui-scale', String(uiScale));
   overlay.style.left = `${formCenter.left}px`;
   overlay.style.top = `${formCenter.top}px`;
-  overlay.style.width = mobile
-    ? `${Math.min(panelWidth * 0.94, canvasRect.width * 0.92)}px`
-    : `${Math.min(420, panelWidth * 0.88)}px`;
+  overlay.style.width = `${formWidth}px`;
 
   backBtn.style.left = `${backCenter.left}px`;
   backBtn.style.top = `${backCenter.top}px`;
+  backBtn.style.width = `${backWidth}px`;
 }
 
 /** Remove auth HTML so it never blocks canvas clicks after leaving the account page. */

@@ -38,6 +38,17 @@ export function drawMenuBackdrop(scene: Phaser.Scene, depth = -10): Phaser.GameO
   return g;
 }
 
+export function drawSolidBackdrop(
+  scene: Phaser.Scene,
+  color = 0x000000,
+  depth = -10,
+): Phaser.GameObjects.Graphics {
+  const g = scene.add.graphics().setDepth(depth);
+  g.fillStyle(color, 1);
+  g.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+  return g;
+}
+
 export function drawPanel(
   g: Phaser.GameObjects.Graphics,
   x: number,

@@ -14,14 +14,14 @@ import {
 import { GAME_WIDTH } from '../config/gameConstants';
 import { focusGameSurface } from '../utils/sceneNav';
 import {
-  drawMenuBackdrop,
+  drawSolidBackdrop,
   createGlowTitle,
   createStyledButton,
   drawPanel,
   mountFullscreenButton,
   UI_FONTS,
 } from '../ui/theme';
-import { destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
+import { AUTH_PANEL, destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
@@ -43,11 +43,11 @@ export default class AuthScene extends Phaser.Scene {
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();
 
-    drawMenuBackdrop(this);
+    drawSolidBackdrop(this, 0x000000);
     mountFullscreenButton(this);
 
     const panel = this.add.graphics();
-    drawPanel(panel, GAME_WIDTH / 2 - 320, 80, 640, 520);
+    drawPanel(panel, AUTH_PANEL.x, AUTH_PANEL.y, AUTH_PANEL.width, AUTH_PANEL.height);
 
     createGlowTitle(this, GAME_WIDTH / 2, 130, 'ACCOUNT', '32px');
 
@@ -64,7 +64,7 @@ export default class AuthScene extends Phaser.Scene {
           fontSize: '13px',
           color: cloudReady ? '#8a7aa8' : '#ff4757',
           align: 'center',
-          wordWrap: { width: 520 },
+          wordWrap: { width: AUTH_PANEL.width - 80 },
         },
       )
       .setOrigin(0.5);
