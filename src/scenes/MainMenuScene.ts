@@ -37,7 +37,7 @@ import {
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
 import { destroyAuthFormOverlay } from '../ui/authForm';
-import { focusGameSurface } from '../utils/sceneNav';
+import { focusGameSurface, startSceneNextTick } from '../utils/sceneNav';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, unlockMobileAudio } from '../utils/audioUnlock';
@@ -313,11 +313,9 @@ export default class MainMenuScene extends Phaser.Scene {
   }
 
   private handleLogout(): void {
-    destroyAuthFormOverlay();
-    focusGameSurface();
     this.stopMenuAudio();
     void logout().catch(() => undefined);
-    this.scene.start('AuthScene', {
+    startSceneNextTick(this.game, 'AuthScene', {
       next: 'MainMenuScene',
       mode: 'login',
       fromLogout: true,
@@ -329,9 +327,7 @@ export default class MainMenuScene extends Phaser.Scene {
     fromLogout = false,
     nextScene = 'MainMenuScene',
   ): void {
-    destroyAuthFormOverlay();
-    focusGameSurface();
-    this.scene.start('AuthScene', { next: nextScene, mode, fromLogout });
+    startSceneNextTick(this.game, 'AuthScene', { next: nextScene, mode, fromLogout });
   }
 
   private startGame(): void {

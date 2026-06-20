@@ -103,12 +103,10 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-/** Remove any legacy auth overlay left on document.body from older builds. */
+/** Remove auth form nodes so stale DOM never blocks canvas input. */
 export function destroyAuthFormOverlay(): void {
   document.querySelectorAll(`#${FORM_ID}`).forEach((node) => {
-    if (!node.closest('.phaser-dom-container')) {
-      node.remove();
-    }
+    node.remove();
   });
   const active = document.activeElement;
   if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {

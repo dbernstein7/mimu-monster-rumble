@@ -12,7 +12,7 @@ import {
   validateRegistrationInput,
 } from '../services/userProfile';
 import { GAME_WIDTH } from '../config/gameConstants';
-import { focusGameSurface } from '../utils/sceneNav';
+import { focusGameSurface, startSceneNextTick } from '../utils/sceneNav';
 import {
   drawMenuBackdrop,
   createGlowTitle,
@@ -111,14 +111,12 @@ export default class AuthScene extends Phaser.Scene {
     const target =
       this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene;
     this.teardownAuthForm();
-    focusGameSurface();
-    this.scene.start(target);
+    startSceneNextTick(this.game, target);
   }
 
   private goToNextScene(): void {
     this.teardownAuthForm();
-    focusGameSurface();
-    this.scene.start(this.nextScene);
+    startSceneNextTick(this.game, this.nextScene);
   }
 
   private switchMode(mode: 'login' | 'register'): void {
