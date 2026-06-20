@@ -565,6 +565,7 @@ export default class GameScene extends Phaser.Scene {
     this.playerWalkingSfx.update(this.player, movement, true);
     this.waveManager.update(delta / 1000);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
+    this.mobileControls?.update(this.player);
 
     this.enemies.getChildren().forEach((e) => {
       const enemy = e as Enemy;
@@ -666,6 +667,7 @@ export default class GameScene extends Phaser.Scene {
     this.player.updateVisuals(walk);
     this.playerWalkingSfx.update(this.player, walk, true);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
+    this.mobileControls?.update(this.player);
   }
 
   private finishLevelExit(): void {

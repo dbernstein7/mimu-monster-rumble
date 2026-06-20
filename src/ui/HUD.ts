@@ -17,12 +17,14 @@ import {
   formatScore,
   createIconButton,
 } from './theme';
+import { isMobileTouchDevice } from '../utils/device';
 
 const HUD_TEXT_STROKE = { stroke: '#0d0618', strokeThickness: 4 };
 
 export class HUD {
   scene: Phaser.Scene;
   container: Phaser.GameObjects.Container;
+  private readonly hideMobilePowerHud = isMobileTouchDevice();
   progressGfx!: Phaser.GameObjects.Graphics;
   abilityGfx!: Phaser.GameObjects.Graphics;
   secondaryGfx!: Phaser.GameObjects.Graphics;
@@ -232,6 +234,13 @@ export class HUD {
 
   private drawAbility(player: Player): void {
     this.abilityGfx.clear();
+    if (this.hideMobilePowerHud) {
+      this.abilityIcon.setVisible(false);
+      this.abilityName.setVisible(false);
+      this.abilityStatus.setVisible(false);
+      return;
+    }
+
     const cx = 200;
     const cy = GAME_HEIGHT - 38;
     const ready = player.canUseAbility();
@@ -275,6 +284,13 @@ export class HUD {
 
   private drawSecondaryProjectile(player: Player, _levelIndex: number): void {
     this.secondaryGfx.clear();
+    if (this.hideMobilePowerHud) {
+      this.secondaryIcon.setVisible(false);
+      this.secondaryName.setVisible(false);
+      this.secondaryStatus.setVisible(false);
+      return;
+    }
+
     const show = true;
     this.secondaryName.setVisible(show);
     this.secondaryStatus.setVisible(show);

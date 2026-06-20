@@ -1,19 +1,24 @@
 import Phaser from 'phaser';
-import { getCharacter } from '../config/characters';
-import { getSecondaryProjectileConfig } from '../config/secondaryProjectiles';
+import {
+  applyAttackIconSizing,
+  getPrimaryAbilityTextureKey,
+  getSecondaryAbilityTextureKey,
+} from '../config/characterAttacks';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import type { CharacterId } from '../types/game';
-import { UI_COLORS, UI_FONTS } from './theme';
+import type { Player } from '../entities/Player';
+import { UI_COLORS } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
 
-const EDGE = 16;
-const JOYSTICK_BASE_RADIUS = 58;
-const JOYSTICK_THUMB_RADIUS = 26;
-const JOYSTICK_MAX_DRAG = 42;
-const JOYSTICK_DEADZONE = 0.18;
-const ABILITY_RADIUS = 46;
-const SECONDARY_RADIUS = 42;
-const BTN_GAP = 10;
+const EDGE = 22;
+const JOYSTICK_BASE_RADIUS = 82;
+const JOYSTICK_THUMB_RADIUS = 36;
+const JOYSTICK_MAX_DRAG = 62;
+const JOYSTICK_DEADZONE = 0.16;
+const ABILITY_RADIUS = 60;
+const SECONDARY_RADIUS = 56;
+const BTN_GAP = 14;
+const ICON_PX = 72;
 
 const JOYSTICK_CENTER = {
   x: EDGE + JOYSTICK_BASE_RADIUS,
@@ -34,23 +39,32 @@ function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
 }
 
+interface PowerButton {
+  x: number;
+  y: number;
+  radius: number;
+  container: Phaser.GameObjects.Container;
+  ring: Phaser.GameObjects.Arc;
+  icon: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
+  cooldownGfx: Phaser.GameObjects.Graphics;
+}
+
 export class MobileControls {
   private scene: Phaser.Scene;
   private container: Phaser.GameObjects.Container;
   private thumb?: Phaser.GameObjects.Arc;
-  private abilityCircle?: Phaser.GameObjects.Arc;
-  private secondaryCircle?: Phaser.GameObjects.Arc;
+  private abilityBtn?: PowerButton;
+  private secondaryBtn?: PowerButton;
   private enabled = true;
   private joystickPointerId: number | null = null;
   private stickX = 0;
   private stickY = 0;
   private abilityQueued = false;
   private secondaryQueued = false;
+  private player?: Player;
 
   constructor(scene: Phaser.Scene, characterId: CharacterId) {
     this.scene = scene;
-    const char = getCharacter(characterId);
-    const secondary = getSecondaryProjectileConfig(characterId);
 
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(900);
 
@@ -59,33 +73,36 @@ export class MobileControls {
       return;
     }
 
-    const base = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_BASE_RADIUS, 0x140a24, 0.55);
-    base.setStrokeStyle(3, UI_COLORS.panelHighlight, 0.85);
+    const base = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_BASE_RADIUS, 0x140a24, 0.6);
+    base.setStrokeStyle(4, UI_COLORS.panelHighlight, 0.9);
 
-    this.thumb = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_THUMB_RADIUS, 0xffc857, 0.75);
-    this.thumb.setStrokeStyle(2, 0xffffff, 0.9);
+    this.thumb = scene.add.circle(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y, JOYSTICK_THUMB_RADIUS, 0xffc857, 0.8);
+    this.thumb.setStrokeStyle(3, 0xffffff, 0.95);
 
-    const abilityBtn = this.createActionButton(
+    const primaryKey = getPrimaryAbilityTextureKey(scene, characterId);
+    const secondaryKey = getSecondaryAbilityTextureKey(scene, characterId);
+
+    this.abilityBtn = this.createPowerButton(
       ABILITY_BTN.x,
       ABILITY_BTN.y,
       ABILITY_BTN.radius,
+      primaryKey,
       UI_COLORS.orange,
-      'SPEC',
-      char.abilityName.split(' ')[0]?.slice(0, 4).toUpperCase() ?? 'SPEC',
     );
-    this.abilityCircle = abilityBtn.circle;
-
-    const secondaryBtn = this.createActionButton(
+    this.secondaryBtn = this.createPowerButton(
       SECONDARY_BTN.x,
       SECONDARY_BTN.y,
       SECONDARY_BTN.radius,
+      secondaryKey,
       UI_COLORS.cyan,
-      'ALT',
-      secondary.name.split(' ')[0]?.slice(0, 4).toUpperCase() ?? 'ALT',
     );
-    this.secondaryCircle = secondaryBtn.circle;
 
-    this.container.add([base, this.thumb, abilityBtn.container, secondaryBtn.container]);
+    this.container.add([
+      base,
+      this.thumb,
+      this.abilityBtn.container,
+      this.secondaryBtn.container,
+    ]);
 
     const updateStick = (pointer: Phaser.Input.Pointer) => {
       if (this.joystickPointerId !== pointer.id) return;
@@ -113,21 +130,27 @@ export class MobileControls {
     const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled || !pointer.isDown) return;
 
-      if (dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius) {
+      if (
+        this.player?.canUseAbility() &&
+        dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + 8
+      ) {
         this.abilityQueued = true;
-        this.abilityCircle?.setAlpha(1);
+        this.flashButton(this.abilityBtn);
         return;
       }
 
-      if (dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius) {
+      if (
+        this.player?.canUseSecondaryProjectile() &&
+        dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + 8
+      ) {
         this.secondaryQueued = true;
-        this.secondaryCircle?.setAlpha(1);
+        this.flashButton(this.secondaryBtn);
         return;
       }
 
       if (
         this.joystickPointerId === null &&
-        dist(pointer.x, pointer.y, JOYSTICK_CENTER.x, JOYSTICK_CENTER.y) <= JOYSTICK_BASE_RADIUS + 12
+        dist(pointer.x, pointer.y, JOYSTICK_CENTER.x, JOYSTICK_CENTER.y) <= JOYSTICK_BASE_RADIUS + 16
       ) {
         this.joystickPointerId = pointer.id;
         updateStick(pointer);
@@ -135,12 +158,6 @@ export class MobileControls {
     };
 
     const onPointerUp = (pointer: Phaser.Input.Pointer) => {
-      if (dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + 8) {
-        this.abilityCircle?.setAlpha(0.82);
-      }
-      if (dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + 8) {
-        this.secondaryCircle?.setAlpha(0.82);
-      }
       resetStick(pointer);
     };
 
@@ -158,6 +175,22 @@ export class MobileControls {
     });
   }
 
+  update(player: Player): void {
+    this.player = player;
+    if (!this.enabled || !this.abilityBtn || !this.secondaryBtn) return;
+
+    this.drawButtonCooldown(
+      this.abilityBtn,
+      player.canUseAbility(),
+      player.getAbilityCooldownProgress(),
+    );
+    this.drawButtonCooldown(
+      this.secondaryBtn,
+      player.canUseSecondaryProjectile(),
+      player.getSecondaryCooldownProgress(),
+    );
+  }
+
   isActive(): boolean {
     return isMobileTouchDevice() && this.enabled && this.container.visible;
   }
@@ -169,8 +202,8 @@ export class MobileControls {
       this.stickX = 0;
       this.stickY = 0;
       this.thumb?.setPosition(JOYSTICK_CENTER.x, JOYSTICK_CENTER.y);
-      this.abilityCircle?.setAlpha(0.82);
-      this.secondaryCircle?.setAlpha(0.82);
+      this.abilityBtn?.cooldownGfx.clear();
+      this.secondaryBtn?.cooldownGfx.clear();
     }
   }
 
@@ -193,34 +226,79 @@ export class MobileControls {
     return true;
   }
 
-  private createActionButton(
+  private flashButton(btn?: PowerButton): void {
+    if (!btn || !(btn.icon instanceof Phaser.GameObjects.Image)) return;
+    const icon = btn.icon;
+    icon.setScale(icon.scale * 0.92);
+    this.scene.time.delayedCall(80, () => {
+      if (icon.active) {
+        applyAttackIconSizing(icon, ICON_PX);
+      }
+    });
+  }
+
+  private drawButtonCooldown(btn: PowerButton, ready: boolean, progress: number): void {
+    btn.cooldownGfx.clear();
+    btn.ring.setStrokeStyle(4, ready ? UI_COLORS.success : UI_COLORS.panelHighlight, ready ? 1 : 0.75);
+    if (btn.icon instanceof Phaser.GameObjects.Image) {
+      btn.icon.setAlpha(ready ? 1 : 0.85);
+    }
+
+    if (ready) return;
+
+    const remaining = Phaser.Math.Clamp(1 - progress, 0, 1);
+    if (remaining <= 0) return;
+
+    const start = Phaser.Math.DegToRad(-90);
+    const end = start + Phaser.Math.PI2 * remaining;
+    btn.cooldownGfx.fillStyle(0x0d0618, 0.62);
+    btn.cooldownGfx.beginPath();
+    btn.cooldownGfx.moveTo(0, 0);
+    btn.cooldownGfx.arc(0, 0, btn.radius - 2, start, end, false);
+    btn.cooldownGfx.closePath();
+    btn.cooldownGfx.fillPath();
+  }
+
+  private createPowerButton(
     x: number,
     y: number,
     radius: number,
-    color: number,
-    shortLabel: string,
-    subLabel: string,
-  ): { container: Phaser.GameObjects.Container; circle: Phaser.GameObjects.Arc } {
+    textureKey: string | null,
+    fallbackColor: number,
+  ): PowerButton {
     const btn = this.scene.add.container(x, y);
-    const circle = this.scene.add.circle(0, 0, radius, color, 0.82);
-    circle.setStrokeStyle(3, 0xffffff, 0.85);
-    const label = this.scene.add
-      .text(0, -6, shortLabel, {
-        fontFamily: UI_FONTS.body,
-        fontSize: '15px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5);
-    const hint = this.scene.add
-      .text(0, 14, subLabel, {
-        fontFamily: UI_FONTS.body,
-        fontSize: '10px',
-        color: '#f5f0ff',
-      })
-      .setOrigin(0.5);
+    const ring = this.scene.add.circle(0, 0, radius, 0x140a24, 0.72);
+    ring.setStrokeStyle(4, UI_COLORS.panelHighlight, 0.85);
 
-    btn.add([circle, label, hint]);
-    return { container: btn, circle };
+    let icon: Phaser.GameObjects.Image | undefined;
+    if (textureKey) {
+      icon = this.scene.add.image(0, 0, textureKey).setOrigin(0.5);
+      applyAttackIconSizing(icon, ICON_PX);
+    } else {
+      const fallback = this.scene.add.circle(0, 0, radius * 0.55, fallbackColor, 0.9);
+      btn.add(fallback);
+    }
+
+    const cooldownGfx = this.scene.add.graphics();
+
+    const hit = this.scene.add
+      .circle(0, 0, radius, 0x000000, 0.001)
+      .setInteractive({ useHandCursor: false });
+
+    hit.on('pointerdown', (_pointer: Phaser.Input.Pointer, _lx: number, _ly: number, ev?: Phaser.Types.Input.EventData) => {
+      ev?.stopPropagation();
+    });
+
+    if (icon) btn.add(icon);
+    btn.add([ring, cooldownGfx, hit]);
+    return {
+      x,
+      y,
+      radius,
+      container: btn,
+      ring,
+      icon: icon ?? ring,
+      cooldownGfx,
+    };
   }
 }
