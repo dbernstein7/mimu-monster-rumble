@@ -8,7 +8,7 @@ import GameScene from './scenes/GameScene';
 import GameOverScene from './scenes/GameOverScene';
 import LeaderboardScene from './scenes/LeaderboardScene';
 import { loadHeadlineFont } from './assets/uiFonts';
-import { bindMobileOrientationUi, bindMobileViewport, getMobileScaleMode } from './utils/device';
+import { bindMobileOrientationUi, bindMobileViewport, getMobileScaleMode, isMobileImmersive } from './utils/device';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
 
 bindMobileOrientationUi();
@@ -65,7 +65,8 @@ void loadHeadlineFont().then(() => {
 
   function syncLetterboxBackground(): void {
     if (!gameContainer) return;
-    gameContainer.style.backgroundColor = game.scale.isFullscreen ? '#1a0a2e' : '#000000';
+    const expanded = game.scale.isFullscreen || isMobileImmersive();
+    gameContainer.style.backgroundColor = expanded ? '#1a0a2e' : '#000000';
   }
 
   function onDisplayChange(): void {

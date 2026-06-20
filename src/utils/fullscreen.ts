@@ -1,30 +1,56 @@
 import Phaser from 'phaser';
 import {
+  collapseBrowserChrome,
   isMobileImmersive,
   isMobileTouchDevice,
+  isNativeFullscreenActive,
   setMobileImmersive,
   syncMobileViewport,
   tryLockLandscape,
 } from './device';
 
-function canRequestNativeFullscreen(): boolean {
+function getFullscreenElement(): HTMLElement | null {
+  return document.getElementById('game-container');
+}
+
+export async function requestNativeFullscreen(): Promise<boolean> {
   if (typeof document === 'undefined') return false;
-  const el = document.getElementById('game-container') as HTMLElement | null;
+  const el = getFullscreenElement();
   if (!el) return false;
-  const doc = document as Document & { webkitFullscreenEnabled?: boolean };
-  return !!(
-    (doc.fullscreenEnabled && el.requestFullscreen) ||
-    (el as HTMLElement & { webkitRequestFullscreen?: () => void }).webkitRequestFullscreen
-  );
+
+  const options: FullscreenOptions = { navigationUI: 'hide' };
+
+  try {
+    if (el.requestFullscreen) {
+      await el.requestFullscreen(options);
+      return isNativeFullscreenActive();
+    }
+  } catch {
+    // Try webkit fallback below.
+  }
+
+  const webkitEl = el as HTMLElement & { webkitRequestFullscreen?: () => void };
+  try {
+    if (webkitEl.webkitRequestFullscreen) {
+      webkitEl.webkitRequestFullscreen();
+      return isNativeFullscreenActive();
+    }
+  } catch {
+    // Fall through to mobile immersive mode.
+  }
+
+  return false;
 }
 
 export function isFullscreenSupported(_scene: Phaser.Scene): boolean {
   if (typeof document === 'undefined') return false;
-  return canRequestNativeFullscreen() || isMobileTouchDevice();
+  if (isMobileTouchDevice()) return true;
+  const el = getFullscreenElement();
+  return !!(document.fullscreenEnabled && el?.requestFullscreen);
 }
 
 export function isFullscreen(scene: Phaser.Scene): boolean {
-  return scene.scale.isFullscreen || isMobileImmersive();
+  return scene.scale.isFullscreen || isMobileImmersive() || isNativeFullscreenActive();
 }
 
 function refreshDisplay(scene: Phaser.Scene): void {
@@ -32,17 +58,18 @@ function refreshDisplay(scene: Phaser.Scene): void {
   scene.scale.refresh();
 }
 
-export function enterFullscreen(scene: Phaser.Scene): void {
+export async function enterFullscreen(scene: Phaser.Scene): Promise<void> {
   if (isFullscreen(scene)) return;
 
-  if (canRequestNativeFullscreen()) {
-    scene.scale.startFullscreen();
+  const nativeOk = await requestNativeFullscreen();
+  if (nativeOk) {
     refreshDisplay(scene);
     void tryLockLandscape();
     return;
   }
 
   if (isMobileTouchDevice()) {
+    await collapseBrowserChrome();
     setMobileImmersive(true);
     refreshDisplay(scene);
     void tryLockLandscape();
@@ -53,6 +80,16 @@ export function exitFullscreen(scene: Phaser.Scene): void {
   if (scene.scale.isFullscreen) {
     scene.scale.stopFullscreen();
   }
+
+  const doc = document as Document & { webkitExitFullscreen?: () => void };
+  if (isNativeFullscreenActive()) {
+    if (document.exitFullscreen) {
+      void document.exitFullscreen();
+    } else if (doc.webkitExitFullscreen) {
+      doc.webkitExitFullscreen();
+    }
+  }
+
   setMobileImmersive(false);
   refreshDisplay(scene);
 }
@@ -63,6 +100,6 @@ export function toggleFullscreen(scene: Phaser.Scene): void {
   if (isFullscreen(scene)) {
     exitFullscreen(scene);
   } else {
-    enterFullscreen(scene);
+    void enterFullscreen(scene);
   }
 }

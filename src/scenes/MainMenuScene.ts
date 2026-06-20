@@ -30,7 +30,7 @@ import {
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
-import { isMobileTouchDevice } from '../utils/device';
+import { isIosBrowser, isMobileTouchDevice } from '../utils/device';
 import {
   hasIntroSfx,
   INTRO_SFX_GAP_MS,
@@ -217,7 +217,9 @@ export default class MainMenuScene extends Phaser.Scene {
         GAME_WIDTH / 2,
         GAME_HEIGHT - 36,
         isMobileTouchDevice()
-          ? 'Tap FULLSCREEN for the best mobile view  ·  Rotate to landscape  ·  Touch controls in-game'
+          ? isIosBrowser()
+            ? 'Tap FULLSCREEN to expand  ·  For no browser bar: Share → Add to Home Screen'
+            : 'Tap FULLSCREEN to hide the browser bar  ·  Rotate to landscape  ·  Touch controls in-game'
           : 'Click FULLSCREEN for best view  ·  Space / A to confirm  ·  Mouse + Keyboard + Controller',
         {
           fontFamily: UI_FONTS.body,

@@ -15,8 +15,23 @@ export function isMobileTouchDevice(): boolean {
   return coarse && narrow && touchPoints;
 }
 
+export function isIosBrowser(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return (
+    /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+  );
+}
+
 export function isMobileImmersive(): boolean {
   return immersive;
+}
+
+export function isNativeFullscreenActive(): boolean {
+  if (typeof document === 'undefined') return false;
+  const container = document.getElementById('game-container');
+  const doc = document as Document & { webkitFullscreenElement?: Element | null };
+  return document.fullscreenElement === container || doc.webkitFullscreenElement === container;
 }
 
 export function setMobileImmersive(active: boolean): void {
@@ -25,26 +40,50 @@ export function setMobileImmersive(active: boolean): void {
   syncMobileViewport();
 }
 
-function isNativeFullscreen(): boolean {
-  if (typeof document === 'undefined') return false;
-  const container = document.getElementById('game-container');
-  const doc = document as Document & { webkitFullscreenElement?: Element | null };
-  return document.fullscreenElement === container || doc.webkitFullscreenElement === container;
+/** Nudge mobile browsers to collapse the URL bar before sizing the canvas. */
+export async function collapseBrowserChrome(): Promise<void> {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return;
+  if (!isMobileTouchDevice()) return;
+
+  const html = document.documentElement;
+  html.classList.add('chrome-collapse');
+
+  await new Promise<void>((resolve) => {
+    requestAnimationFrame(() => {
+      window.scrollTo(0, 1);
+      requestAnimationFrame(() => {
+        window.scrollTo(0, 0);
+        html.classList.remove('chrome-collapse');
+        resolve();
+      });
+    });
+  });
+
+  await new Promise((resolve) => window.setTimeout(resolve, 120));
 }
 
-function applyFullWindowLayout(): void {
+function layoutMobileElements(top: number, left: number, width: number, height: number): void {
   for (const id of MOBILE_VIEWPORT_IDS) {
     const el = document.getElementById(id);
     if (!el) continue;
     el.style.position = 'fixed';
-    el.style.top = '0';
-    el.style.left = '0';
-    el.style.width = '100%';
-    el.style.height = '100%';
+    el.style.top = `${top}px`;
+    el.style.left = `${left}px`;
+    el.style.width = `${width}px`;
+    el.style.height = `${height}px`;
     el.style.right = 'auto';
     el.style.bottom = 'auto';
   }
   window.scrollTo(0, 0);
+}
+
+function getExpandedMobileMetrics(): { top: number; left: number; width: number; height: number } {
+  const vv = window.visualViewport;
+  const width = vv?.width ?? window.innerWidth;
+  const height = Math.max(window.innerHeight, vv?.height ?? 0, document.documentElement.clientHeight);
+  const top = vv?.offsetTop ?? 0;
+  const left = vv?.offsetLeft ?? 0;
+  return { top, left, width, height };
 }
 
 /** Pin layout to the visible viewport so mobile browser chrome does not clip the game. */
@@ -52,35 +91,24 @@ export function syncMobileViewport(): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   if (!isMobileTouchDevice()) return;
 
-  if (isNativeFullscreen() || immersive) {
-    applyFullWindowLayout();
+  if (isNativeFullscreenActive() || immersive) {
+    const metrics = getExpandedMobileMetrics();
+    layoutMobileElements(metrics.top, metrics.left, metrics.width, metrics.height);
     return;
   }
 
   const vv = window.visualViewport;
   if (!vv) {
-    applyFullWindowLayout();
+    layoutMobileElements(0, 0, window.innerWidth, window.innerHeight);
     return;
   }
 
-  const top = Math.max(0, vv.offsetTop);
-  const left = Math.max(0, vv.offsetLeft);
-  const width = `${vv.width}px`;
-  const height = `${vv.height}px`;
-
-  for (const id of MOBILE_VIEWPORT_IDS) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.style.position = 'fixed';
-    el.style.top = `${top}px`;
-    el.style.left = `${left}px`;
-    el.style.width = width;
-    el.style.height = height;
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
-  }
-
-  window.scrollTo(0, 0);
+  layoutMobileElements(
+    Math.max(0, vv.offsetTop),
+    Math.max(0, vv.offsetLeft),
+    vv.width,
+    vv.height,
+  );
 }
 
 function onMobileViewportChange(): void {
