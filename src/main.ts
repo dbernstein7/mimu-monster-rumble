@@ -8,7 +8,7 @@ import GameScene from './scenes/GameScene';
 import GameOverScene from './scenes/GameOverScene';
 import LeaderboardScene from './scenes/LeaderboardScene';
 import { loadHeadlineFont } from './assets/uiFonts';
-import { bindMobileOrientationUi } from './utils/device';
+import { bindMobileOrientationUi, bindMobileViewport } from './utils/device';
 import { GAME_WIDTH, GAME_HEIGHT } from './config/gameConstants';
 
 bindMobileOrientationUi();
@@ -59,12 +59,19 @@ void loadHeadlineFont().then(() => {
   const game = new Phaser.Game(config);
   const gameContainer = document.getElementById('game-container');
 
+  bindMobileViewport(game);
+
   function syncLetterboxBackground(): void {
     if (!gameContainer) return;
     gameContainer.style.backgroundColor = game.scale.isFullscreen ? '#1a0a2e' : '#000000';
   }
 
-  game.scale.on('enterfullscreen', syncLetterboxBackground);
-  game.scale.on('leavefullscreen', syncLetterboxBackground);
-  syncLetterboxBackground();
+  function onDisplayChange(): void {
+    syncLetterboxBackground();
+    bindMobileViewport(game);
+  }
+
+  game.scale.on('enterfullscreen', onDisplayChange);
+  game.scale.on('leavefullscreen', onDisplayChange);
+  onDisplayChange();
 });
