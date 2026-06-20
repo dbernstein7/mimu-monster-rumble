@@ -62,6 +62,7 @@ export default class GameScene extends Phaser.Scene {
   levelIndex = 0;
   characterId: CharacterId = 'voidWarrior';
   paused = false;
+  private exitingToMenu = false;
   bossActive = false;
   levelTransitioning = false;
   inputManager!: InputManager;
@@ -92,6 +93,7 @@ export default class GameScene extends Phaser.Scene {
     this.levelExitActive = false;
     this.gameEnding = false;
     this.paused = false;
+    this.exitingToMenu = false;
     this.registry.set('characterId', this.characterId);
     this.registry.set('levelIndex', this.levelIndex);
   }
@@ -237,11 +239,9 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private exitToMainMenu(): void {
-    this.paused = false;
-    this.pauseOverlay?.setVisible(false);
-    this.time.timeScale = 1;
-    this.physics.resume();
-    this.tweens.resumeAll();
+    if (this.exitingToMenu || this.gameEnding) return;
+    this.exitingToMenu = true;
+
     this.stopAllGameAudio();
     this.abilitySystem?.cancelActiveEffects(this.player);
     returnToMainMenu(this.game);
@@ -550,6 +550,8 @@ export default class GameScene extends Phaser.Scene {
   }
 
   update(_time: number, delta: number): void {
+    if (this.exitingToMenu) return;
+
     this.inputManager.update();
 
     if (this.inputManager.isPauseJustPressed()) {
@@ -775,6 +777,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private setPaused(paused: boolean): void {
+    if (this.exitingToMenu) return;
     if (this.paused === paused) return;
     this.paused = paused;
     this.pauseOverlay.setVisible(paused);

@@ -52,7 +52,10 @@ export function startSceneNextTick(
 }
 
 export function returnToMainMenu(game: Phaser.Game): void {
-  startSceneNextTick(game, MAIN_MENU_SCENE_KEY, {
+  destroyAuthFormOverlay();
+  focusGameSurface();
+  releaseStuckPointers(game);
+  game.scene.start(MAIN_MENU_SCENE_KEY, {
     menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
   });
 }
