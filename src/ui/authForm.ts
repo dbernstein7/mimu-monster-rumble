@@ -29,9 +29,11 @@ function ensureStyles(): void {
     #${FORM_ID} {
       position: fixed;
       left: 50%;
-      top: clamp(200px, 34vh, 300px);
-      transform: translate(-50%, 0);
+      top: 50%;
+      transform: translate(-50%, -50%);
       width: min(92vw, 420px);
+      max-height: min(72vh, 480px);
+      overflow-y: auto;
       z-index: 1000;
       display: flex;
       flex-direction: column;
