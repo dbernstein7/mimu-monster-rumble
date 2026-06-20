@@ -137,8 +137,6 @@ export default class MainMenuScene extends Phaser.Scene {
       this.menuUi.add([titleGlow, titleMain, subtitle, tagline]);
     }
 
-    const user = getCurrentUser();
-
     const menuButtonWidth = MENU_BUTTON_DISPLAY_WIDTH;
     const menuButtonGap = 76;
     const menuButtonHeight = menuButtonWidth * (293 / 1242);
@@ -172,67 +170,10 @@ export default class MainMenuScene extends Phaser.Scene {
 
     const authButtonY = menuStartY + menuButtonGap * 2;
 
-    if (user) {
-      if (hasLogOutButtonTexture(this)) {
-        this.addImageMenuButton(
-          GAME_WIDTH / 2,
-          authButtonY,
-          LOG_OUT_BUTTON_TEXTURE_KEY,
-          menuButtonWidth,
-          () => this.handleLogout(),
-        );
-      } else {
-        this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'LOG OUT', () => this.handleLogout());
-      }
-    } else if (hasSignInButtonTexture(this)) {
-      this.addImageMenuButton(
-        GAME_WIDTH / 2,
-        authButtonY,
-        SIGN_IN_BUTTON_TEXTURE_KEY,
-        menuButtonWidth,
-        () => this.goToAuthScene('login'),
-      );
-    } else {
-      this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN / REGISTER', () => {
-        this.goToAuthScene('login');
-      });
-    }
-
-    const usernameY = authButtonY + menuButtonHeight / 2 + 22;
-    let footerY = authButtonY + menuButtonHeight / 2 + 72;
-
-    if (user) {
-      const username = this.add
-        .text(GAME_WIDTH / 2, usernameY, `●  ${user.username}`, {
-          fontFamily: UI_FONTS.body,
-          fontSize: '16px',
-          color: '#2ed573',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5);
-      this.menuUi.add(username);
-      void waitForAuthReady().then(async () => {
-        const profile = await loadUserProfile();
-        if (!profile || !this.scene.isActive()) return;
-        const wallet = this.add
-          .text(GAME_WIDTH / 2, usernameY + 22, `◎ ${formatScore(profile.totalCoins)} banked coins`, {
-            fontFamily: UI_FONTS.body,
-            fontSize: '14px',
-            color: '#ffd166',
-            fontStyle: 'bold',
-          })
-          .setOrigin(0.5);
-        this.menuUi.add(wallet);
-      });
-      footerY = usernameY + 74;
-    }
-
-    if (!isMobileTouchDevice()) {
-      const fullscreenBtn = mountFullscreenButton(this, GAME_WIDTH / 2, footerY);
-      fullscreenBtn?.setAlpha(MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
-      if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
-      footerY += 52;
-    }
+    void waitForAuthReady().then(async () => {
+      if (!this.scene.isActive()) return;
+      await this.mountAuthSection(authButtonY, menuButtonWidth, menuButtonHeight);
+    });
 
     const footerHint = this.add
       .text(
@@ -337,14 +278,86 @@ export default class MainMenuScene extends Phaser.Scene {
   private startGame(): void {
     unlockMobileAudio(this.game);
 
-    if (!isSignedInAccount() || !getCurrentUser()) {
-      this.goToAuthScene('login', false, 'CharacterSelectScene');
-      return;
+    void waitForAuthReady().then(() => {
+      if (!this.scene.isActive()) return;
+
+      if (!isSignedInAccount() || !getCurrentUser()) {
+        this.goToAuthScene('login', false, 'CharacterSelectScene');
+        return;
+      }
+
+      resetRunState(this.registry);
+      this.scene.start('CharacterSelectScene', FRESH_RUN_SELECT_DATA);
+    });
+  }
+
+  private async mountAuthSection(
+    authButtonY: number,
+    menuButtonWidth: number,
+    menuButtonHeight: number,
+  ): Promise<void> {
+    const user = getCurrentUser();
+    const usernameY = authButtonY + menuButtonHeight / 2 + 22;
+    let footerY = authButtonY + menuButtonHeight / 2 + 72;
+
+    if (user) {
+      if (hasLogOutButtonTexture(this)) {
+        this.addImageMenuButton(
+          GAME_WIDTH / 2,
+          authButtonY,
+          LOG_OUT_BUTTON_TEXTURE_KEY,
+          menuButtonWidth,
+          () => this.handleLogout(),
+        );
+      } else {
+        this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'LOG OUT', () => this.handleLogout());
+      }
+
+      const username = this.add
+        .text(GAME_WIDTH / 2, usernameY, `●  ${user.username}`, {
+          fontFamily: UI_FONTS.body,
+          fontSize: '16px',
+          color: '#2ed573',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5);
+      this.menuUi.add(username);
+
+      const profile = await loadUserProfile();
+      if (profile && this.scene.isActive()) {
+        const wallet = this.add
+          .text(GAME_WIDTH / 2, usernameY + 22, `◎ ${formatScore(profile.totalCoins)} banked coins`, {
+            fontFamily: UI_FONTS.body,
+            fontSize: '14px',
+            color: '#ffd166',
+            fontStyle: 'bold',
+          })
+          .setOrigin(0.5);
+        this.menuUi.add(wallet);
+      }
+
+      footerY = usernameY + 74;
+    } else if (hasSignInButtonTexture(this)) {
+      this.addImageMenuButton(
+        GAME_WIDTH / 2,
+        authButtonY,
+        SIGN_IN_BUTTON_TEXTURE_KEY,
+        menuButtonWidth,
+        () => this.goToAuthScene('login'),
+      );
+    } else {
+      this.addMenuButton(GAME_WIDTH / 2, authButtonY, 'SIGN IN / REGISTER', () => {
+        this.goToAuthScene('login');
+      });
     }
 
-    resetRunState(this.registry);
+    if (!isMobileTouchDevice()) {
+      const fullscreenBtn = mountFullscreenButton(this, GAME_WIDTH / 2, footerY);
+      fullscreenBtn?.setAlpha(MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
+      if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
+    }
 
-    this.scene.start('CharacterSelectScene', FRESH_RUN_SELECT_DATA);
+    this.refreshHighlight();
   }
 
   update(): void {

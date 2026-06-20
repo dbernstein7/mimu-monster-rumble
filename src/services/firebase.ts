@@ -49,7 +49,7 @@ function getFirebaseConfig() {
 let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let db: Firestore | null = null;
-let authReadyPromise: Promise<void> | null = null;
+let initialAuthRestore: Promise<void> | null = null;
 let persistencePromise: Promise<void> | null = null;
 
 export function isFirebaseEnabled(): boolean {
@@ -106,28 +106,20 @@ export function initAuthListener(): void {
 
 export function waitForAuthReady(): Promise<void> {
   if (!initFirebase() || !auth) return Promise.resolve();
-  if (auth.currentUser) return Promise.resolve();
 
-  if (!authReadyPromise) {
-    authReadyPromise = Promise.all([
-      persistencePromise ?? Promise.resolve(),
-      new Promise<void>((resolve) => {
-        let settled = false;
-        const finish = (): void => {
-          if (settled) return;
-          settled = true;
-          resolve();
-        };
-        const unsub = onAuthStateChanged(auth!, () => {
-          unsub();
-          finish();
-        });
-        window.setTimeout(finish, 2500);
-      }),
-    ]).then(() => undefined);
+  if (!initialAuthRestore) {
+    initialAuthRestore = (persistencePromise ?? Promise.resolve()).then(
+      () =>
+        new Promise<void>((resolve) => {
+          const unsub = onAuthStateChanged(auth!, () => {
+            unsub();
+            resolve();
+          });
+        }),
+    );
   }
 
-  return authReadyPromise;
+  return initialAuthRestore;
 }
 
 function getOrCreatePlayerId(): string {
@@ -216,7 +208,7 @@ export async function logout(): Promise<void> {
       new Promise<void>((resolve) => window.setTimeout(resolve, 4000)),
     ]);
   }
-  authReadyPromise = null;
+  initialAuthRestore = null;
   const { clearProfileCache } = await import('./userProfile');
   clearProfileCache();
 }
