@@ -51,6 +51,8 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    this.input.keyboard?.clearCaptures();
+    this.input.resetPointers();
     this.inputManager = new InputManager(this);
     this.cardImages = [];
     this.selectionGfx = [];
@@ -147,21 +149,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     });
 
     if (!this.continueRun) {
-      const backBtn = this.add
-        .text(GAME_WIDTH / 2, GAME_HEIGHT - 44, '← BACK', {
-          fontFamily: UI_FONTS.body,
-          fontSize: '18px',
-          color: '#a89bc4',
-          fontStyle: 'bold',
-        })
-        .setOrigin(0.5)
-        .setInteractive({ useHandCursor: true });
-      backBtn.on('pointerover', () => backBtn.setColor('#ffc857'));
-      backBtn.on('pointerout', () => backBtn.setColor('#a89bc4'));
-      backBtn.on('pointerup', () => {
-        this.stopChooseMimuAudio();
-        returnToMainMenu(this.game);
-      });
+      this.createBackButton();
     }
 
     this.refreshHighlight();
@@ -202,6 +190,37 @@ export default class CharacterSelectScene extends Phaser.Scene {
     if (this.inputManager.isConfirmJustPressed()) {
       this.startWithCharacter(CHARACTERS[this.selectedIndex].id as CharacterId);
     }
+    if (!this.continueRun && (this.inputManager.isPauseJustPressed() || this.inputManager.isPauseQuitJustPressed())) {
+      this.goBackToMainMenu();
+    }
+  }
+
+  private createBackButton(): void {
+    const x = GAME_WIDTH / 2;
+    const y = GAME_HEIGHT - 44;
+    const label = this.add
+      .text(x, y, '← BACK', {
+        fontFamily: UI_FONTS.body,
+        fontSize: '18px',
+        color: '#a89bc4',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setDepth(100);
+
+    const hit = this.add
+      .rectangle(x, y, 240, 52, 0x000000, 0.001)
+      .setDepth(100)
+      .setInteractive({ useHandCursor: true });
+    hit.on('pointerover', () => label.setColor('#ffc857'));
+    hit.on('pointerout', () => label.setColor('#a89bc4'));
+    hit.on('pointerdown', () => this.goBackToMainMenu());
+  }
+
+  private goBackToMainMenu(): void {
+    this.stopChooseMimuAudio();
+    this.input.resetPointers();
+    returnToMainMenu(this.game);
   }
 
   private refreshHighlight(): void {
