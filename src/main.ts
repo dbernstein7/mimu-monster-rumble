@@ -35,6 +35,8 @@ const config: Phaser.Types.Core.GameConfig = {
   input: {
     gamepad: true,
     keyboard: true,
+    touch: true,
+    activePointers: 3,
   },
   physics: {
     default: 'arcade',

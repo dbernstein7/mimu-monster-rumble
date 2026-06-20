@@ -34,6 +34,10 @@ export class MobileControls {
       return;
     }
 
+    // Joystick + two attack buttons need simultaneous touch pointers.
+    scene.input.addPointer(2);
+    scene.input.setTopOnly(false);
+
     this.layout = getMobileControlLayout();
     const { joystick, ability, secondary: secondaryBtn } = this.layout;
 
@@ -93,8 +97,10 @@ export class MobileControls {
       this.thumb?.setPosition(this.layout.joystick.x, this.layout.joystick.y);
     };
 
-    base.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
-      if (!this.enabled || this.pointerId !== null) return;
+    base.on('pointerdown', (pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event?: Phaser.Types.Input.EventData) => {
+      event?.stopPropagation();
+      if (!this.enabled) return;
+      if (this.pointerId !== null && this.pointerId !== pointer.id) return;
       this.pointerId = pointer.id;
       updateStick(pointer);
     });
@@ -177,11 +183,12 @@ export class MobileControls {
       .setOrigin(0.5);
 
     const hit = this.scene.add.circle(0, 0, radius + 6, 0x000000, 0.001).setInteractive({ useHandCursor: false });
-    hit.on('pointerdown', (_pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event?: Phaser.Types.Input.EventData) => {
+    hit.on('pointerdown', (pointer: Phaser.Input.Pointer, _lx: number, _ly: number, event?: Phaser.Types.Input.EventData) => {
       event?.stopPropagation();
       if (!this.enabled) return;
       onPress();
       circle.setAlpha(1);
+      pointer.event?.stopPropagation?.();
     });
     hit.on('pointerup', () => circle.setAlpha(0.82));
     hit.on('pointerout', () => circle.setAlpha(0.82));
