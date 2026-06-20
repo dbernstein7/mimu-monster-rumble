@@ -4,6 +4,7 @@ import {
   createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
+  sendPasswordResetEmail,
   updateProfile,
   onAuthStateChanged,
   setPersistence,
@@ -202,6 +203,11 @@ export async function register(
   await ensureUserProfile(cred.user.uid, username);
   setCachedAuthUser(cred.user);
   return { userId: cred.user.uid, username: username.trim() };
+}
+
+export async function sendPasswordReset(email: string): Promise<void> {
+  const authInstance = requireCloudAuth();
+  await sendPasswordResetEmail(authInstance, email.trim());
 }
 
 export async function login(

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import {
   login,
   register,
+  sendPasswordReset,
   isFirebaseEnabled,
   formatAuthError,
   getCurrentUser,
@@ -75,6 +76,7 @@ export default class AuthScene extends Phaser.Scene {
         {
           showContinue: signedIn,
           onContinue: () => this.goToNextScene(),
+          onForgotPassword: () => void this.handleForgotPassword(),
         },
       );
       this.authForm.setMode(this.mode);
@@ -151,6 +153,29 @@ export default class AuthScene extends Phaser.Scene {
     try {
       await login(values.email, values.password);
       this.goToNextScene();
+    } catch (err) {
+      this.authForm.setError(formatAuthError(err));
+    } finally {
+      this.authForm.setLoading(false);
+    }
+  }
+
+  private async handleForgotPassword(): Promise<void> {
+    if (!this.authForm || !isFirebaseEnabled()) return;
+    if (this.authForm.getMode() !== 'login') return;
+
+    const email = this.authForm.getValues().email;
+    this.authForm.setError('');
+
+    if (!email.trim()) {
+      this.authForm.setError('Enter your email address first.');
+      return;
+    }
+
+    this.authForm.setLoading(true);
+    try {
+      await sendPasswordReset(email);
+      this.authForm.setSuccess('Reset link sent! Check your email inbox.');
     } catch (err) {
       this.authForm.setError(formatAuthError(err));
     } finally {

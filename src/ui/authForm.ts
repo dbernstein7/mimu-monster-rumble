@@ -14,6 +14,7 @@ export interface AuthFormHandle {
   getValues: () => AuthFormValues;
   getMode: () => AuthFormMode;
   setError: (message: string) => void;
+  setSuccess: (message: string) => void;
   setLoading: (loading: boolean) => void;
   setMode: (mode: AuthFormMode) => void;
   destroy: () => void;
@@ -182,6 +183,29 @@ function ensureStyles(): void {
       text-align: center;
       font-weight: 600;
     }
+    .${FORM_CLASS} .mimu-auth-error.mimu-auth-success {
+      color: #2ed573;
+    }
+    .${FORM_CLASS} .mimu-auth-forgot {
+      align-self: flex-end;
+      margin: -0.15rem 0 0;
+      border: none;
+      background: transparent;
+      color: #a89bc4;
+      font-size: 0.8rem;
+      font-family: inherit;
+      cursor: pointer;
+      padding: 0.15rem 0;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .${FORM_CLASS} .mimu-auth-forgot:hover {
+      color: #ffc857;
+    }
+    .${FORM_CLASS} .mimu-auth-forgot:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
     .${FORM_CLASS} .mimu-auth-hint {
       font-size: 0.78rem;
       color: #8a7aa8;
@@ -340,7 +364,11 @@ export function mountAuthForm(
   initialMode: AuthFormMode,
   onSubmit: () => void,
   onBack: () => void,
-  options?: { showContinue?: boolean; onContinue?: () => void },
+  options?: {
+    showContinue?: boolean;
+    onContinue?: () => void;
+    onForgotPassword?: () => void;
+  },
 ): AuthFormHandle {
   destroyAuthFormOverlay();
   ensureStyles();
@@ -416,6 +444,11 @@ export function mountAuthForm(
   passwordInput.placeholder = 'At least 6 characters';
   passwordWrap.append(passwordLabel, passwordInput);
 
+  const forgotBtn = document.createElement('button');
+  forgotBtn.type = 'button';
+  forgotBtn.className = 'mimu-auth-forgot';
+  forgotBtn.textContent = 'Forgot password?';
+
   const errorEl = document.createElement('div');
   errorEl.className = 'mimu-auth-error';
 
@@ -427,7 +460,7 @@ export function mountAuthForm(
   submitBtn.className = 'mimu-auth-submit';
   submitBtn.textContent = submitLabel(initialMode);
 
-  root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
+  root.append(usernameWrap, emailWrap, passwordWrap, forgotBtn, errorEl, hintEl, submitBtn);
 
   const continueBtn = document.createElement('button');
   continueBtn.type = 'button';
@@ -453,6 +486,11 @@ export function mountAuthForm(
     loginTab.classList.toggle('active', mode === 'login');
   };
 
+  const clearFeedback = (): void => {
+    errorEl.textContent = '';
+    errorEl.classList.remove('mimu-auth-success');
+  };
+
   const syncMode = (): void => {
     const isRegister = mode === 'register';
     usernameWrap.style.display = isRegister ? 'flex' : 'none';
@@ -464,6 +502,7 @@ export function mountAuthForm(
     passwordWrap.style.display = 'flex';
     passwordWrap.style.flexDirection = 'column';
     passwordWrap.style.gap = '0.35rem';
+    forgotBtn.hidden = isRegister || !options?.onForgotPassword;
     passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
     submitBtn.textContent = submitLabel(mode);
     hintEl.textContent = isRegister
@@ -489,13 +528,16 @@ export function mountAuthForm(
 
   registerTab.addEventListener('click', () => {
     mode = 'register';
-    errorEl.textContent = '';
+    clearFeedback();
     syncMode();
   });
   loginTab.addEventListener('click', () => {
     mode = 'login';
-    errorEl.textContent = '';
+    clearFeedback();
     syncMode();
+  });
+  forgotBtn.addEventListener('click', () => {
+    options?.onForgotPassword?.();
   });
   backBtn.addEventListener('click', () => {
     onBack();
@@ -536,16 +578,22 @@ export function mountAuthForm(
     getMode: () => mode,
     setError: (message: string) => {
       errorEl.textContent = message;
+      errorEl.classList.remove('mimu-auth-success');
+    },
+    setSuccess: (message: string) => {
+      errorEl.textContent = message;
+      errorEl.classList.add('mimu-auth-success');
     },
     setLoading: (loading: boolean) => {
       submitBtn.disabled = loading;
       emailInput.disabled = loading;
       passwordInput.disabled = loading;
       usernameInput.disabled = loading;
+      forgotBtn.disabled = loading;
     },
     setMode: (nextMode: AuthFormMode) => {
       mode = nextMode;
-      errorEl.textContent = '';
+      clearFeedback();
       syncMode();
     },
     destroy: () => {
