@@ -20,7 +20,7 @@ import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
-import { returnToMainMenu } from '../utils/sceneNav';
+import { MAIN_MENU_INPUT_GUARD_MS } from '../utils/sceneNav';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
@@ -67,6 +67,7 @@ export default class GameScene extends Phaser.Scene {
   levelTransitioning = false;
   inputManager!: InputManager;
   pauseOverlay!: Phaser.GameObjects.Container;
+  private pauseMenuButtons: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
   levelCompleteBanner!: Phaser.GameObjects.Text;
   contactTimer = 0;
   confusedBumpTimer = 0;
@@ -242,9 +243,15 @@ export default class GameScene extends Phaser.Scene {
     if (this.exitingToMenu || this.gameEnding) return;
     this.exitingToMenu = true;
 
+    // Scene changes do not run reliably while this scene's clock is frozen.
+    this.time.timeScale = 1;
+    this.physics.resume();
+    this.tweens.resumeAll();
+
     this.stopAllGameAudio();
     this.abilitySystem?.cancelActiveEffects(this.player);
-    returnToMainMenu(this.game);
+    this.input.resetPointers();
+    this.scene.start('MainMenuScene', { menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS });
   }
 
   private clampEntity(sprite: Parameters<typeof clampSpriteToWorld>[0]): void {
@@ -561,7 +568,12 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.paused) return;
+    if (this.paused) {
+      if (this.inputManager.isPauseQuitJustPressed()) {
+        this.exitToMainMenu();
+      }
+      return;
+    }
 
     if (this.levelTransitioning || this.gameEnding) return;
 
@@ -781,6 +793,7 @@ export default class GameScene extends Phaser.Scene {
     if (this.paused === paused) return;
     this.paused = paused;
     this.pauseOverlay.setVisible(paused);
+    this.pauseMenuButtons.forEach((obj) => obj.setVisible(paused));
     this.hud.setPauseButtonVisible(!paused);
 
     if (paused) {
@@ -893,8 +906,7 @@ export default class GameScene extends Phaser.Scene {
 
     const blocker = this.add
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.78)
-      .setScrollFactor(0)
-      .setInteractive();
+      .setScrollFactor(0);
 
     const panel = this.add.graphics().setScrollFactor(0);
     panel.fillStyle(0x140a24, 0.95);
@@ -912,24 +924,8 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    const resumeBtn = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 5, '▶  RESUME', {
-        fontFamily: '"Exo 2", sans-serif',
-        fontSize: '20px',
-        color: '#2ed573',
-        fontStyle: 'bold',
-        backgroundColor: '#1e1030',
-        padding: { x: 20, y: 10 },
-      })
-      .setOrigin(0.5)
-      .setScrollFactor(0)
-      .setInteractive({ useHandCursor: true });
-    resumeBtn.on('pointerover', () => resumeBtn.setColor('#ffc857'));
-    resumeBtn.on('pointerout', () => resumeBtn.setColor('#2ed573'));
-    resumeBtn.on('pointerup', () => this.setPaused(false));
-
     const hint = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 45, 'ESC / P / START', {
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 45, 'ESC / P  ·  Q quits to menu', {
         fontFamily: '"Exo 2", sans-serif',
         fontSize: '13px',
         color: '#8a7aa8',
@@ -937,24 +933,65 @@ export default class GameScene extends Phaser.Scene {
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    const quit = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 80, 'QUIT TO MENU', {
+    this.pauseOverlay.add([blocker, panel, title, hint]);
+
+    this.pauseMenuButtons = [
+      ...this.addPauseMenuButton(
+        GAME_HEIGHT / 2 + 5,
+        '▶  RESUME',
+        '#2ed573',
+        '#ffc857',
+        () => this.setPaused(false),
+      ),
+      ...this.addPauseMenuButton(
+        GAME_HEIGHT / 2 + 80,
+        'QUIT TO MENU',
+        '#ff4757',
+        '#ffc857',
+        () => this.exitToMainMenu(),
+      ),
+    ];
+    this.pauseMenuButtons.forEach((obj) => obj.setVisible(false));
+  }
+
+  private addPauseMenuButton(
+    y: number,
+    label: string,
+    color: string,
+    hoverColor: string,
+    onClick: () => void,
+  ): Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> {
+    const width = 300;
+    const height = 48;
+    const hit = this.add
+      .rectangle(GAME_WIDTH / 2, y, width, height, 0x000000, 0.001)
+      .setScrollFactor(0)
+      .setDepth(501)
+      .setInteractive({ useHandCursor: true });
+    const text = this.add
+      .text(GAME_WIDTH / 2, y, label, {
         fontFamily: '"Exo 2", sans-serif',
-        fontSize: '16px',
-        color: '#ff4757',
+        fontSize: label.startsWith('QUIT') ? '16px' : '20px',
+        color,
         fontStyle: 'bold',
+        backgroundColor: label.startsWith('▶') ? '#1e1030' : undefined,
+        padding: label.startsWith('▶') ? { x: 20, y: 10 } : undefined,
       })
       .setOrigin(0.5)
       .setScrollFactor(0)
-      .setInteractive({ useHandCursor: true });
-    quit.on('pointerover', () => quit.setColor('#ffc857'));
-    quit.on('pointerout', () => quit.setColor('#ff4757'));
-    quit.on('pointerup', () => this.exitToMainMenu());
+      .setDepth(502);
 
-    blocker.on('pointerdown', (_p: unknown, _x: unknown, _y: unknown, ev?: Phaser.Types.Input.EventData) => {
-      ev?.stopPropagation();
-    });
+    const fire = (): void => {
+      if (!this.paused || this.exitingToMenu) return;
+      onClick();
+    };
 
-    this.pauseOverlay.add([blocker, panel, title, resumeBtn, hint, quit]);
+    hit.on('pointerdown', fire);
+    text.setInteractive({ useHandCursor: true });
+    text.on('pointerdown', fire);
+    text.on('pointerover', () => text.setColor(hoverColor));
+    text.on('pointerout', () => text.setColor(color));
+
+    return [hit, text];
   }
 }

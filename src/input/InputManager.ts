@@ -26,6 +26,7 @@ export class InputManager {
   private lastSecondaryBtn = false;
   private lastPauseBtn = false;
   private lastConfirmBtn = false;
+  private lastPauseQuitBtn = false;
   private lastDpadUp = false;
   private lastDpadDown = false;
   private lastDpadLeft = false;
@@ -163,6 +164,13 @@ export class InputManager {
     return keyPressed || btnPressed;
   }
 
+  /** Q / gamepad B while on the pause overlay. */
+  isPauseQuitJustPressed(): boolean {
+    const keyPressed = Phaser.Input.Keyboard.JustDown(this.keys.Q);
+    const btnPressed = this.isGamepadButtonJustPressed(1, 'pauseQuit');
+    return keyPressed || btnPressed;
+  }
+
   isConfirmJustPressed(): boolean {
     const keyPressed =
       Phaser.Input.Keyboard.JustDown(this.keys.SPACE) ||
@@ -223,7 +231,7 @@ export class InputManager {
 
   private isGamepadButtonJustPressed(
     index: number,
-    tracker: 'ability' | 'secondary' | 'pause' | 'confirm',
+    tracker: 'ability' | 'secondary' | 'pause' | 'confirm' | 'pauseQuit',
   ): boolean {
     if (!this.pad) return false;
     const pressed = this.pad.buttons[index]?.pressed ?? false;
@@ -232,6 +240,7 @@ export class InputManager {
       secondary: 'lastSecondaryBtn',
       pause: 'lastPauseBtn',
       confirm: 'lastConfirmBtn',
+      pauseQuit: 'lastPauseQuitBtn',
     } as const;
     const key = trackers[tracker];
     const wasPressed = this[key];
