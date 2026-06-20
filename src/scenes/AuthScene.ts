@@ -12,6 +12,7 @@ import {
   validateRegistrationInput,
 } from '../services/userProfile';
 import { GAME_WIDTH } from '../config/gameConstants';
+import { focusGameSurface } from '../utils/sceneNav';
 import {
   drawMenuBackdrop,
   createGlowTitle,
@@ -28,7 +29,6 @@ export default class AuthScene extends Phaser.Scene {
   private authForm?: AuthFormHandle;
   private tabButtons: Phaser.GameObjects.Text[] = [];
   private fromLogout = false;
-  private switchingScene = false;
 
   constructor() {
     super({ key: 'AuthScene' });
@@ -38,7 +38,6 @@ export default class AuthScene extends Phaser.Scene {
     this.nextScene = data.next ?? 'MainMenuScene';
     this.mode = data.mode ?? 'login';
     this.fromLogout = data.fromLogout ?? false;
-    this.switchingScene = false;
   }
 
   create(): void {
@@ -99,7 +98,7 @@ export default class AuthScene extends Phaser.Scene {
   shutdown(): void {
     this.teardownAuthForm();
     this.tabButtons = [];
-    this.switchingScene = false;
+    focusGameSurface();
   }
 
   private teardownAuthForm(): void {
@@ -108,21 +107,18 @@ export default class AuthScene extends Phaser.Scene {
     destroyAuthFormOverlay();
   }
 
-  private switchToScene(sceneKey: string): void {
-    if (this.switchingScene) return;
-    this.switchingScene = true;
-    this.teardownAuthForm();
-    this.scene.start(sceneKey);
-  }
-
   private leaveScene(): void {
     const target =
       this.nextScene === 'CharacterSelectScene' ? 'MainMenuScene' : this.nextScene;
-    this.switchToScene(target);
+    this.teardownAuthForm();
+    focusGameSurface();
+    this.scene.start(target);
   }
 
   private goToNextScene(): void {
-    this.switchToScene(this.nextScene);
+    this.teardownAuthForm();
+    focusGameSurface();
+    this.scene.start(this.nextScene);
   }
 
   private switchMode(mode: 'login' | 'register'): void {

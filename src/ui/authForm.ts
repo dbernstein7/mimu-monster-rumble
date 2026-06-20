@@ -45,6 +45,10 @@ function ensureStyles(): void {
       box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
       font-family: 'Exo 2', system-ui, sans-serif;
       color: #f5f0ff;
+      pointer-events: none;
+    }
+    #${FORM_ID} input,
+    #${FORM_ID} button {
       pointer-events: auto;
     }
     #${FORM_ID} label {
@@ -108,11 +112,10 @@ function ensureStyles(): void {
 
 /** Remove any leftover auth overlay from the DOM (safe to call anytime). */
 export function destroyAuthFormOverlay(): void {
+  blurFocusedInput();
   document.querySelectorAll(`#${FORM_ID}`).forEach((node) => node.remove());
-  const active = document.activeElement;
-  if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {
-    active.blur();
-  }
+  const gameContainer = document.getElementById('game-container');
+  gameContainer?.focus({ preventScroll: true });
 }
 
 function blurFocusedInput(): void {
@@ -182,12 +185,8 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
   submitBtn.textContent = submitLabel(initialMode);
 
   root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
-  document.body.appendChild(root);
-  const focusTimer = window.setTimeout(() => {
-    if (document.getElementById(FORM_ID)) {
-      emailInput.focus();
-    }
-  }, 0);
+  const host = document.getElementById('game-container') ?? document.body;
+  host.appendChild(root);
 
   let mode: AuthFormMode = initialMode;
 
@@ -245,7 +244,6 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
       syncMode();
     },
     destroy: () => {
-      window.clearTimeout(focusTimer);
       blurFocusedInput();
       destroyAuthFormOverlay();
     },
