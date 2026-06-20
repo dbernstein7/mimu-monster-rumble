@@ -172,6 +172,7 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
 
   root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
   document.body.appendChild(root);
+  window.setTimeout(() => emailInput.focus(), 0);
 
   let mode: AuthFormMode = initialMode;
 
@@ -194,6 +195,14 @@ export function mountAuthForm(initialMode: AuthFormMode, onSubmit: () => void): 
   };
 
   syncMode();
+
+  const stopGameKeys = (event: Event): void => {
+    event.stopPropagation();
+  };
+  for (const input of [usernameInput, emailInput, passwordInput]) {
+    input.addEventListener('keydown', stopGameKeys);
+    input.addEventListener('keyup', stopGameKeys);
+  }
 
   root.addEventListener('submit', (event) => {
     event.preventDefault();

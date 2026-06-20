@@ -27,6 +27,7 @@ export default class AuthScene extends Phaser.Scene {
   private mode: 'login' | 'register' = 'login';
   private authForm?: AuthFormHandle;
   private tabButtons: Phaser.GameObjects.Text[] = [];
+  private keyboardWasEnabled = true;
 
   constructor() {
     super({ key: 'AuthScene' });
@@ -38,6 +39,13 @@ export default class AuthScene extends Phaser.Scene {
   }
 
   create(): void {
+    const kb = this.input.keyboard;
+    if (kb) {
+      this.keyboardWasEnabled = kb.enabled;
+      kb.clearCaptures();
+      kb.enabled = false;
+    }
+
     drawMenuBackdrop(this);
     mountFullscreenButton(this);
 
@@ -93,6 +101,10 @@ export default class AuthScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    const kb = this.input.keyboard;
+    if (kb) {
+      kb.enabled = this.keyboardWasEnabled;
+    }
     this.teardownAuthForm();
     this.tabButtons = [];
   }
