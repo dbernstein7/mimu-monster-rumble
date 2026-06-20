@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH } from '../config/gameConstants';
+import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 
 export type AuthFormMode = 'login' | 'register';
 
@@ -18,7 +18,8 @@ export interface AuthFormHandle {
 }
 
 const STYLE_ID = 'mimu-auth-form-styles';
-const FORM_ID = 'mimu-auth-form';
+const FORM_CLASS = 'mimu-auth-form';
+const LEGACY_FORM_ID = 'mimu-auth-form';
 
 function submitLabel(mode: AuthFormMode): string {
   return mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
@@ -29,7 +30,8 @@ function ensureStyles(): void {
   const style = document.createElement('style');
   style.id = STYLE_ID;
   style.textContent = `
-    #${FORM_ID} {
+    .${FORM_CLASS} {
+      position: absolute;
       width: 420px;
       max-width: 42vw;
       display: flex;
@@ -43,14 +45,17 @@ function ensureStyles(): void {
       font-family: 'Exo 2', system-ui, sans-serif;
       color: #f5f0ff;
       box-sizing: border-box;
+      z-index: 20;
+      pointer-events: auto;
+      transform: translate(-50%, -50%);
     }
-    #${FORM_ID} label {
+    .${FORM_CLASS} label {
       font-size: 0.78rem;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: #a89bc4;
     }
-    #${FORM_ID} input {
+    .${FORM_CLASS} input {
       width: 100%;
       box-sizing: border-box;
       border-radius: 10px;
@@ -61,28 +66,28 @@ function ensureStyles(): void {
       font-size: 16px;
       outline: none;
     }
-    #${FORM_ID} input:focus {
+    .${FORM_CLASS} input:focus {
       border-color: #ffc857;
       box-shadow: 0 0 0 2px rgba(255, 200, 87, 0.25);
     }
-    #${FORM_ID} input:disabled {
+    .${FORM_CLASS} input:disabled {
       opacity: 0.65;
     }
-    #${FORM_ID} .mimu-auth-error {
+    .${FORM_CLASS} .mimu-auth-error {
       min-height: 1.1rem;
       font-size: 0.82rem;
       color: #ff4757;
       text-align: center;
       font-weight: 600;
     }
-    #${FORM_ID} .mimu-auth-hint {
+    .${FORM_CLASS} .mimu-auth-hint {
       font-size: 0.78rem;
       color: #8a7aa8;
       text-align: center;
       line-height: 1.35;
       margin: 0;
     }
-    #${FORM_ID} .mimu-auth-submit {
+    .${FORM_CLASS} .mimu-auth-submit {
       margin-top: 0.25rem;
       border: none;
       border-radius: 999px;
@@ -95,7 +100,7 @@ function ensureStyles(): void {
       cursor: pointer;
       width: 100%;
     }
-    #${FORM_ID} .mimu-auth-submit:disabled {
+    .${FORM_CLASS} .mimu-auth-submit:disabled {
       opacity: 0.65;
       cursor: wait;
     }
@@ -103,13 +108,34 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-/** Remove auth form nodes so stale DOM never blocks canvas input. */
+function positionAuthForm(root: HTMLElement, scene: Phaser.Scene): void {
+  const container = document.getElementById('game-container');
+  const canvas = scene.game.canvas;
+  if (!container || !canvas) return;
+
+  const containerRect = container.getBoundingClientRect();
+  const canvasRect = canvas.getBoundingClientRect();
+  const gameX = GAME_WIDTH / 2;
+  const gameY = 400;
+  const left =
+    canvasRect.left - containerRect.left + (gameX / GAME_WIDTH) * canvasRect.width;
+  const top =
+    canvasRect.top - containerRect.top + (gameY / GAME_HEIGHT) * canvasRect.height;
+
+  root.style.left = `${left}px`;
+  root.style.top = `${top}px`;
+}
+
+/** Remove auth form HTML so it never blocks canvas clicks after leaving the account page. */
 export function destroyAuthFormOverlay(): void {
-  document.querySelectorAll(`#${FORM_ID}`).forEach((node) => {
+  document.querySelectorAll(`.${FORM_CLASS}, #${LEGACY_FORM_ID}`).forEach((node) => {
     node.remove();
   });
   const active = document.activeElement;
-  if (active instanceof HTMLElement && active.closest(`#${FORM_ID}`)) {
+  if (
+    active instanceof HTMLElement &&
+    (active.closest(`.${FORM_CLASS}`) || active.closest(`#${LEGACY_FORM_ID}`))
+  ) {
     active.blur();
   }
 }
@@ -122,8 +148,13 @@ export function mountAuthForm(
   destroyAuthFormOverlay();
   ensureStyles();
 
+  const container = document.getElementById('game-container');
+  if (!container) {
+    throw new Error('game-container not found');
+  }
+
   const root = document.createElement('form');
-  root.id = FORM_ID;
+  root.className = FORM_CLASS;
   root.setAttribute('autocomplete', 'on');
   root.setAttribute('aria-label', 'Account sign in');
 
@@ -178,11 +209,8 @@ export function mountAuthForm(
   submitBtn.textContent = submitLabel(initialMode);
 
   root.append(usernameWrap, emailWrap, passwordWrap, errorEl, hintEl, submitBtn);
-
-  const dom = scene.add.dom(GAME_WIDTH / 2, 400, root);
-  dom.setOrigin(0.5);
-  dom.setScrollFactor(0);
-  dom.setDepth(5000);
+  container.appendChild(root);
+  positionAuthForm(root, scene);
 
   let mode: AuthFormMode = initialMode;
 
@@ -219,14 +247,24 @@ export function mountAuthForm(
     onSubmit();
   });
 
-  let destroyed = false;
-  const destroyDom = (): void => {
-    if (destroyed) return;
-    destroyed = true;
-    if (dom.active) {
-      dom.destroy();
+  const syncPosition = (): void => {
+    if (root.isConnected) {
+      positionAuthForm(root, scene);
     }
   };
+  scene.scale.on('resize', syncPosition);
+  window.addEventListener('resize', syncPosition);
+
+  let destroyed = false;
+  const destroyForm = (): void => {
+    if (destroyed) return;
+    destroyed = true;
+    scene.scale.off('resize', syncPosition);
+    window.removeEventListener('resize', syncPosition);
+    root.remove();
+  };
+
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, destroyForm);
 
   return {
     getValues: () => ({
@@ -249,7 +287,7 @@ export function mountAuthForm(
       syncMode();
     },
     destroy: () => {
-      destroyDom();
+      destroyForm();
     },
   };
 }

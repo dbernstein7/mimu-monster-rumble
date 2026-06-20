@@ -21,7 +21,7 @@ import {
   mountFullscreenButton,
   UI_FONTS,
 } from '../ui/theme';
-import { destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
+import { mountAuthForm, type AuthFormHandle } from '../ui/authForm';
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
@@ -41,7 +41,6 @@ export default class AuthScene extends Phaser.Scene {
   }
 
   create(): void {
-    destroyAuthFormOverlay();
     this.input.keyboard?.clearCaptures();
 
     drawMenuBackdrop(this);
@@ -104,7 +103,6 @@ export default class AuthScene extends Phaser.Scene {
   private teardownAuthForm(): void {
     this.authForm?.destroy();
     this.authForm = undefined;
-    destroyAuthFormOverlay();
   }
 
   private leaveScene(): void {

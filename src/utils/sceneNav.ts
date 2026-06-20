@@ -38,7 +38,9 @@ export function startSceneNextTick(
   key: string,
   data?: object,
 ): void {
-  destroyAuthFormOverlay();
+  if (key !== AUTH_SCENE_KEY) {
+    destroyAuthFormOverlay();
+  }
   focusGameSurface();
   window.setTimeout(() => {
     releaseStuckPointers(game);
