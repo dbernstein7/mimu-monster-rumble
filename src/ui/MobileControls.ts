@@ -47,6 +47,7 @@ interface PowerButton {
   ring: Phaser.GameObjects.Arc;
   icon: Phaser.GameObjects.Image | Phaser.GameObjects.Arc;
   cooldownGfx: Phaser.GameObjects.Graphics;
+  hit: Phaser.GameObjects.Arc;
 }
 
 export class MobileControls {
@@ -63,8 +64,9 @@ export class MobileControls {
   private secondaryQueued = false;
   private player?: Player;
 
-  constructor(scene: Phaser.Scene, characterId: CharacterId) {
+  constructor(scene: Phaser.Scene, characterId: CharacterId, player?: Player) {
     this.scene = scene;
+    this.player = player;
 
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(900);
 
@@ -96,6 +98,9 @@ export class MobileControls {
       secondaryKey,
       UI_COLORS.cyan,
     );
+
+    this.abilityBtn.hit.on('pointerdown', () => this.queueAbilityPress());
+    this.secondaryBtn.hit.on('pointerdown', () => this.queueSecondaryPress());
 
     this.container.add([
       base,
@@ -129,27 +134,14 @@ export class MobileControls {
 
     const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled || !pointer.isDown) return;
+      if (this.joystickPointerId !== null) return;
 
-      if (
-        this.player?.canUseAbility() &&
-        dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + 8
-      ) {
-        this.abilityQueued = true;
-        this.flashButton(this.abilityBtn);
+      if (dist(pointer.x, pointer.y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + 10) return;
+      if (dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + 10) {
         return;
       }
 
       if (
-        this.player?.canUseSecondaryProjectile() &&
-        dist(pointer.x, pointer.y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + 8
-      ) {
-        this.secondaryQueued = true;
-        this.flashButton(this.secondaryBtn);
-        return;
-      }
-
-      if (
-        this.joystickPointerId === null &&
         dist(pointer.x, pointer.y, JOYSTICK_CENTER.x, JOYSTICK_CENTER.y) <= JOYSTICK_BASE_RADIUS + 16
       ) {
         this.joystickPointerId = pointer.id;
@@ -175,20 +167,16 @@ export class MobileControls {
     });
   }
 
+  bindPlayer(player: Player): void {
+    this.player = player;
+  }
+
   update(player: Player): void {
     this.player = player;
     if (!this.enabled || !this.abilityBtn || !this.secondaryBtn) return;
 
-    this.drawButtonCooldown(
-      this.abilityBtn,
-      player.canUseAbility(),
-      player.getAbilityCooldownProgress(),
-    );
-    this.drawButtonCooldown(
-      this.secondaryBtn,
-      player.canUseSecondaryProjectile(),
-      player.getSecondaryCooldownProgress(),
-    );
+    this.drawPrimaryCooldown(player);
+    this.drawSecondaryCooldown(player);
   }
 
   isActive(): boolean {
@@ -226,6 +214,18 @@ export class MobileControls {
     return true;
   }
 
+  private queueAbilityPress(): void {
+    if (!this.enabled || !this.player?.canUseAbility()) return;
+    this.abilityQueued = true;
+    this.flashButton(this.abilityBtn);
+  }
+
+  private queueSecondaryPress(): void {
+    if (!this.enabled || !this.player?.canUseSecondaryProjectile()) return;
+    this.secondaryQueued = true;
+    this.flashButton(this.secondaryBtn);
+  }
+
   private flashButton(btn?: PowerButton): void {
     if (!btn || !(btn.icon instanceof Phaser.GameObjects.Image)) return;
     const icon = btn.icon;
@@ -237,7 +237,12 @@ export class MobileControls {
     });
   }
 
-  private drawButtonCooldown(btn: PowerButton, ready: boolean, progress: number): void {
+  /** Same ready/cooldown rules as the desktop HUD ability ring. */
+  private drawPrimaryCooldown(player: Player): void {
+    if (!this.abilityBtn) return;
+    const btn = this.abilityBtn;
+    const ready = player.canUseAbility();
+    const progress = player.getAbilityCooldownProgress();
     btn.cooldownGfx.clear();
     btn.ring.setStrokeStyle(4, ready ? UI_COLORS.success : UI_COLORS.panelHighlight, ready ? 1 : 0.75);
     if (btn.icon instanceof Phaser.GameObjects.Image) {
@@ -246,15 +251,55 @@ export class MobileControls {
 
     if (ready) return;
 
+    const start = Phaser.Math.DegToRad(-90);
+    const end = start + Phaser.Math.PI2 * progress;
+    btn.cooldownGfx.lineStyle(4, UI_COLORS.gold, 1);
+    btn.cooldownGfx.beginPath();
+    btn.cooldownGfx.arc(0, 0, btn.radius - 2, start, end, false);
+    btn.cooldownGfx.strokePath();
+
     const remaining = Phaser.Math.Clamp(1 - progress, 0, 1);
     if (remaining <= 0) return;
-
-    const start = Phaser.Math.DegToRad(-90);
-    const end = start + Phaser.Math.PI2 * remaining;
-    btn.cooldownGfx.fillStyle(0x0d0618, 0.62);
+    const overlayEnd = start + Phaser.Math.PI2 * remaining;
+    btn.cooldownGfx.fillStyle(0x0d0618, 0.55);
     btn.cooldownGfx.beginPath();
     btn.cooldownGfx.moveTo(0, 0);
+    btn.cooldownGfx.arc(0, 0, btn.radius - 2, start, overlayEnd, false);
+    btn.cooldownGfx.closePath();
+    btn.cooldownGfx.fillPath();
+  }
+
+  /** Same ready/cooldown rules as the desktop HUD secondary ring. */
+  private drawSecondaryCooldown(player: Player): void {
+    if (!this.secondaryBtn) return;
+    const btn = this.secondaryBtn;
+    const ready = player.canUseSecondaryProjectile();
+    const progress = player.getSecondaryCooldownProgress();
+    btn.cooldownGfx.clear();
+    btn.ring.setStrokeStyle(4, ready ? UI_COLORS.success : UI_COLORS.panelHighlight, ready ? 1 : 0.75);
+    if (btn.icon instanceof Phaser.GameObjects.Image) {
+      btn.icon.setAlpha(ready ? 1 : 0.85);
+    }
+
+    if (ready) return;
+
+    const onCooldown = !player.secondaryReady;
+    if (!onCooldown) return;
+
+    const start = Phaser.Math.DegToRad(-90);
+    const end = start + Phaser.Math.PI2 * progress;
+    btn.cooldownGfx.lineStyle(4, UI_COLORS.cyan, 1);
+    btn.cooldownGfx.beginPath();
     btn.cooldownGfx.arc(0, 0, btn.radius - 2, start, end, false);
+    btn.cooldownGfx.strokePath();
+
+    const remaining = Phaser.Math.Clamp(1 - progress, 0, 1);
+    if (remaining <= 0) return;
+    const overlayEnd = start + Phaser.Math.PI2 * remaining;
+    btn.cooldownGfx.fillStyle(0x0d0618, 0.55);
+    btn.cooldownGfx.beginPath();
+    btn.cooldownGfx.moveTo(0, 0);
+    btn.cooldownGfx.arc(0, 0, btn.radius - 2, start, overlayEnd, false);
     btn.cooldownGfx.closePath();
     btn.cooldownGfx.fillPath();
   }
@@ -280,14 +325,9 @@ export class MobileControls {
     }
 
     const cooldownGfx = this.scene.add.graphics();
-
     const hit = this.scene.add
       .circle(0, 0, radius, 0x000000, 0.001)
       .setInteractive({ useHandCursor: false });
-
-    hit.on('pointerdown', (_pointer: Phaser.Input.Pointer, _lx: number, _ly: number, ev?: Phaser.Types.Input.EventData) => {
-      ev?.stopPropagation();
-    });
 
     if (icon) btn.add(icon);
     btn.add([ring, cooldownGfx, hit]);
@@ -299,6 +339,7 @@ export class MobileControls {
       ring,
       icon: icon ?? ring,
       cooldownGfx,
+      hit,
     };
   }
 }

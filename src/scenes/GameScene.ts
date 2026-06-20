@@ -154,7 +154,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.inputManager = new InputManager(this);
     if (isMobileTouchDevice()) {
-      this.mobileControls = new MobileControls(this, this.characterId);
+      this.mobileControls = new MobileControls(this, this.characterId, this.player);
       this.inputManager.setMobileControls(this.mobileControls);
     }
 
@@ -548,6 +548,8 @@ export default class GameScene extends Phaser.Scene {
 
     const movement = this.inputManager.lastMovement;
 
+    this.mobileControls?.update(this.player);
+
     if (this.inputManager.isAbilityJustPressed()) {
       this.abilitySystem.useAbility(this.player, this.enemies, movement);
     }
@@ -565,7 +567,6 @@ export default class GameScene extends Phaser.Scene {
     this.playerWalkingSfx.update(this.player, movement, true);
     this.waveManager.update(delta / 1000);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
-    this.mobileControls?.update(this.player);
 
     this.enemies.getChildren().forEach((e) => {
       const enemy = e as Enemy;
