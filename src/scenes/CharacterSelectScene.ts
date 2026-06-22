@@ -90,13 +90,15 @@ function mountCharacterSelectLore(
     y: number,
     content: string,
     style: Phaser.Types.GameObjects.Text.TextStyle,
+    originX = 0,
   ): Phaser.GameObjects.Text => {
-    const text = scene.add.text(x, y, content, style).setOrigin(0, 0).setDepth(0);
+    const text = scene.add.text(x, y, content, style).setOrigin(originX, 0).setDepth(0);
     text.setWordWrapWidth(maxWidth, true);
     text.setMask(loreMask);
     return text;
   };
 
+  const loreCenterX = LORE_LEFT_X + maxWidth / 2;
   let y = startY;
   const paragraphGap = 11;
   const bodyStyle: Phaser.Types.GameObjects.Text.TextStyle = {
@@ -107,14 +109,18 @@ function mountCharacterSelectLore(
     lineSpacing: 4,
   };
 
-  const headline = addLoreText(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
-    fontFamily: UI_FONTS.headline,
-    fontSize: '14px',
-    color: '#ffc857',
-    fontStyle: 'bold',
-    wordWrap: { width: maxWidth, useAdvancedWrap: true },
-    lineSpacing: 4,
-  });
+  const headline = addLoreText(
+    loreCenterX,
+    y,
+    'The Chaos Core has awakened.',
+    {
+      ...bodyStyle,
+      color: '#ffc857',
+      fontStyle: 'bold',
+      align: 'center',
+    },
+    0.5,
+  );
   y += headline.height + paragraphGap;
 
   const bodyOne = addLoreText(
