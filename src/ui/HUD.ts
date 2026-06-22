@@ -157,24 +157,6 @@ export class HUD {
 
     this.pauseBtn = createIconButton(scene, GAME_WIDTH - 44, 46, 'II', onPause, 40);
 
-    if (isMobileTouchDevice()) {
-      const inset = this.mobileUiInset ?? getMobileGameUiInsets(scene);
-      this.pauseBtn.setPosition(GAME_WIDTH - inset.right - 20, inset.top + 22);
-      this.scoreLabel.setPosition(inset.left + 16, inset.top + 8);
-      this.scoreValue.setPosition(inset.left + 16, inset.top + 24);
-      this.coinValue.setPosition(inset.left + 148, inset.top + 24);
-      this.waveBadge.setY(inset.top + 14);
-      this.timerText.setY(inset.top + 40);
-      this.progressLabel.setY(GAME_HEIGHT - inset.bottom - 36);
-      const lifeIconY = inset.top + 22;
-      const lifeIconSpacing = 28;
-      const maxHp = 3;
-      for (let i = 0; i < this.lifeIcons.length; i++) {
-        const x = GAME_WIDTH - inset.right - 36 - (maxHp - 1 - i) * lifeIconSpacing;
-        this.lifeIcons[i].setPosition(x, lifeIconY);
-      }
-    }
-
     if (hasPowerUpTexture(scene, 'health')) {
       const lifeIconScale = 0.088;
       const lifeIconSpacing = 28;
@@ -184,6 +166,26 @@ export class HUD {
         const x = GAME_WIDTH - 100 - (maxHp - 1 - i) * lifeIconSpacing;
         const icon = scene.add.image(x, lifeIconY, 'powerup_health').setScale(lifeIconScale).setOrigin(0.5);
         this.lifeIcons.push(icon);
+      }
+    }
+
+    if (isMobileTouchDevice()) {
+      const inset = this.mobileUiInset ?? getMobileGameUiInsets(scene);
+      const pauseX = inset.left + 24;
+      const pauseY = inset.top + 24;
+      this.pauseBtn.setPosition(pauseX, pauseY);
+      this.scoreLabel.setPosition(inset.left + 52, inset.top + 8);
+      this.scoreValue.setPosition(inset.left + 52, inset.top + 24);
+      this.coinValue.setPosition(inset.left + 168, inset.top + 24);
+      this.waveBadge.setY(inset.top + 14);
+      this.timerText.setY(inset.top + 40);
+      this.progressLabel.setY(GAME_HEIGHT - inset.bottom - 36);
+      const lifeIconY = inset.top + 24;
+      const lifeIconSpacing = 28;
+      const maxHp = 3;
+      for (let i = 0; i < this.lifeIcons.length; i++) {
+        const x = GAME_WIDTH - inset.right - 24 - (maxHp - 1 - i) * lifeIconSpacing;
+        this.lifeIcons[i].setPosition(x, lifeIconY);
       }
     }
 
