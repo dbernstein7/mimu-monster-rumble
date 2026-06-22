@@ -7,25 +7,25 @@ import { bankRunCoins } from '../services/userProfile';
 import {
   hasLeaderboardButtonTexture,
   LEADERBOARD_BUTTON_TEXTURE_KEY,
-  MAIN_MENU_BUTTON_HIGHLIGHT_ALPHA,
-  MAIN_MENU_BUTTON_IDLE_ALPHA,
   MENU_BUTTON_DISPLAY_WIDTH,
 } from '../assets/uiAssets';
 import {
   createHeadlineGlowTitle,
-  createImageMenuButton,
-  createStyledButton,
   drawPanel,
   formatScore,
   mountFullscreenButton,
   subtitleStyle,
   valueStyle,
   UI_FONTS,
-  UI_COLORS,
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
 import { resetRunState } from '../utils/runState';
-import { returnToMainMenu } from '../utils/sceneNav';
+import {
+  focusGameSurface,
+  MAIN_MENU_INPUT_GUARD_MS,
+  MAIN_MENU_SCENE_KEY,
+} from '../utils/sceneNav';
+import { destroyGameOverOverlay, mountGameOverNav } from '../ui/gameOverOverlay';
 
 function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): string {
   const second = getCharacter(mimu2).name;
@@ -34,6 +34,8 @@ function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): 
 }
 
 export default class GameOverScene extends Phaser.Scene {
+  private leaving = false;
+
   constructor() {
     super({ key: 'GameOverScene' });
   }
@@ -46,6 +48,10 @@ export default class GameOverScene extends Phaser.Scene {
     levelIndex?: number;
     won?: boolean;
   }): void {
+    this.leaving = false;
+    this.input.keyboard?.clearCaptures();
+    this.input.resetPointers();
+
     const score = data.score ?? 0;
     const coins = data.coins ?? 0;
     const won = data.won ?? false;
@@ -118,29 +124,67 @@ export default class GameOverScene extends Phaser.Scene {
       statusText.setColor('#a89bc4');
     }
 
+    this.drawNavButtonArt(won);
+
+    mountGameOverNav({
+      won,
+      onMainMenu: () => this.goToMainMenu(),
+      onLeaderboard: () => this.goToLeaderboard(),
+    });
+  }
+
+  shutdown(): void {
+    destroyGameOverOverlay();
+  }
+
+  /** Decorative canvas art only — real clicks use the HTML overlay. */
+  private drawNavButtonArt(won: boolean): void {
     if (won) {
-      this.addLeaderboardButton(GAME_WIDTH / 2, 490);
-      createStyledButton(
-        this,
-        GAME_WIDTH / 2,
-        560,
-        'MAIN MENU',
-        () => this.goToMainMenu(),
-        300,
-        UI_COLORS.panelBorder,
-      );
-    } else {
-      createStyledButton(
-        this,
-        GAME_WIDTH / 2,
-        490,
-        'MAIN MENU',
-        () => this.goToMainMenu(),
-        300,
-        UI_COLORS.panelBorder,
-      );
-      this.addLeaderboardButton(GAME_WIDTH / 2, 560);
+      this.addLeaderboardArt(GAME_WIDTH / 2, 490);
+      this.addMainMenuArt(GAME_WIDTH / 2, 560);
+      return;
     }
+
+    this.addMainMenuArt(GAME_WIDTH / 2, 490);
+    this.addLeaderboardArt(GAME_WIDTH / 2, 560);
+  }
+
+  private addLeaderboardArt(x: number, y: number): void {
+    if (hasLeaderboardButtonTexture(this)) {
+      const image = this.add.image(x, y, LEADERBOARD_BUTTON_TEXTURE_KEY).setOrigin(0.5).setDepth(5);
+      const scale = MENU_BUTTON_DISPLAY_WIDTH / image.width;
+      image.setScale(scale);
+      return;
+    }
+
+    this.add
+      .text(x, y, 'LEADERBOARD', {
+        fontFamily: UI_FONTS.body,
+        fontSize: '20px',
+        color: '#5dffe0',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setDepth(5);
+  }
+
+  private addMainMenuArt(x: number, y: number): void {
+    const g = this.add.graphics().setDepth(5);
+    const width = 300;
+    g.fillStyle(0x2e1a4a, 0.88);
+    g.fillRoundedRect(x - width / 2, y - 26, width, 52, 12);
+    g.lineStyle(2, 0xa89bc4, 1);
+    g.strokeRoundedRect(x - width / 2, y - 26, width, 52, 12);
+
+    this.add
+      .text(x, y, 'MAIN MENU', {
+        fontFamily: UI_FONTS.body,
+        fontSize: '20px',
+        color: '#ffffff',
+        fontStyle: 'bold',
+      })
+      .setOrigin(0.5)
+      .setDepth(6);
   }
 
   private async saveRunResults(
@@ -185,32 +229,27 @@ export default class GameOverScene extends Phaser.Scene {
     }
   }
 
-  private addLeaderboardButton(x: number, y: number): void {
-    const goToLeaderboard = () => this.scene.start('LeaderboardScene');
+  private goToMainMenu(): void {
+    if (this.leaving) return;
+    this.leaving = true;
 
-    if (hasLeaderboardButtonTexture(this)) {
-      const button = createImageMenuButton(
-        this,
-        x,
-        y,
-        LEADERBOARD_BUTTON_TEXTURE_KEY,
-        MENU_BUTTON_DISPLAY_WIDTH,
-        goToLeaderboard,
-        50,
-        MAIN_MENU_BUTTON_IDLE_ALPHA,
-        MAIN_MENU_BUTTON_HIGHLIGHT_ALPHA,
-      );
-      button.hit.on('pointerover', () => button.setHighlighted(true));
-      button.hit.on('pointerout', () => button.setHighlighted(false));
-      return;
-    }
-
-    createStyledButton(this, x, y, 'LEADERBOARD', goToLeaderboard, 300, UI_COLORS.cyan);
+    resetRunState(this.registry);
+    destroyGameOverOverlay();
+    focusGameSurface();
+    this.input.resetPointers();
+    this.scene.start(MAIN_MENU_SCENE_KEY, {
+      menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
+    });
   }
 
-  private goToMainMenu(): void {
-    resetRunState(this.registry);
-    returnToMainMenu(this.game);
+  private goToLeaderboard(): void {
+    if (this.leaving) return;
+    this.leaving = true;
+
+    destroyGameOverOverlay();
+    focusGameSurface();
+    this.input.resetPointers();
+    this.scene.start('LeaderboardScene');
   }
 }
 

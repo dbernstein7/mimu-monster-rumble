@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { destroyAuthFormOverlay } from '../ui/authForm';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
+import { destroyGameOverOverlay } from '../ui/gameOverOverlay';
 
 export const MAIN_MENU_SCENE_KEY = 'MainMenuScene';
 export const AUTH_SCENE_KEY = 'AuthScene';
 export const CHARACTER_SELECT_SCENE_KEY = 'CharacterSelectScene';
+export const GAME_OVER_SCENE_KEY = 'GameOverScene';
 /** Ignore menu clicks briefly after leaving gameplay (prevents quit click hitting PLAY). */
 export const MAIN_MENU_INPUT_GUARD_MS = 500;
 
@@ -19,6 +21,9 @@ export function bindAuthOverlaySceneCleanup(game: Phaser.Game): void {
     }
     if (key !== CHARACTER_SELECT_SCENE_KEY) {
       destroyCharacterSelectOverlay();
+    }
+    if (key !== GAME_OVER_SCENE_KEY) {
+      destroyGameOverOverlay();
     }
     return originalStart(key, data);
   };
@@ -51,6 +56,9 @@ export function startSceneNextTick(
   }
   if (key !== CHARACTER_SELECT_SCENE_KEY) {
     destroyCharacterSelectOverlay();
+  }
+  if (key !== GAME_OVER_SCENE_KEY) {
+    destroyGameOverOverlay();
   }
   focusGameSurface();
   window.setTimeout(() => {
