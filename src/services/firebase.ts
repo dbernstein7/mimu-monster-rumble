@@ -17,6 +17,7 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   getDocs,
   query,
   orderBy,
@@ -30,6 +31,8 @@ export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
 
 const LOCAL_KEY = 'mimu_leaderboard';
 const PLAYER_ID_KEY = 'mimu:playerId';
+const LEADERBOARD_LIMIT = 50;
+const LEADERBOARD_FETCH_LIMIT = 200;
 
 const CLOUD_AUTH_REQUIRED_MSG =
   'Cloud accounts are not configured on this server. Add VITE_FIREBASE_* env vars on Vercel and redeploy.';
@@ -159,7 +162,27 @@ function getLocalLeaderboard(): LeaderboardEntry[] {
 }
 
 function saveLocalLeaderboard(entries: LeaderboardEntry[]): void {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, 50)));
+  localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, LEADERBOARD_LIMIT)));
+}
+
+function dedupeLeaderboardEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
+  const best = new Map<string, LeaderboardEntry>();
+
+  for (const entry of entries) {
+    if (!entry?.userId) continue;
+    const prev = best.get(entry.userId);
+    if (
+      !prev ||
+      entry.score > prev.score ||
+      (entry.score === prev.score && entry.timestamp > prev.timestamp)
+    ) {
+      best.set(entry.userId, entry);
+    }
+  }
+
+  return Array.from(best.values()).sort(
+    (a, b) => b.score - a.score || b.timestamp - a.timestamp,
+  );
 }
 
 export function formatAuthError(err: unknown): string {
@@ -246,7 +269,15 @@ export function onAuthChange(callback: (user: User | null) => void): (() => void
 export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTarget> {
   if (initFirebase() && auth?.currentUser && db) {
     try {
-      await setDoc(doc(db, 'leaderboard', `${entry.userId}_${entry.timestamp}`), entry);
+      const ref = doc(db, 'leaderboard', entry.userId);
+      const existing = await getDoc(ref);
+      if (existing.exists()) {
+        const prev = existing.data() as LeaderboardEntry;
+        if (prev.score >= entry.score) {
+          return 'firebase';
+        }
+      }
+      await setDoc(ref, entry);
       return 'firebase';
     } catch {
       // Fall through to shared API / local storage.
@@ -263,9 +294,14 @@ export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTar
   }
 
   const board = getLocalLeaderboard();
-  board.push(entry);
-  board.sort((a, b) => b.score - a.score);
-  saveLocalLeaderboard(board);
+  const prev = board.find((row) => row.userId === entry.userId);
+  if (prev && prev.score >= entry.score) {
+    return 'local';
+  }
+
+  const next = board.filter((row) => row.userId !== entry.userId);
+  next.push(entry);
+  saveLocalLeaderboard(dedupeLeaderboardEntries(next));
   return 'local';
 }
 
@@ -273,7 +309,7 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const apiEntries = await fetchLeaderboardFromApi();
     if (apiEntries !== null) {
-      return apiEntries;
+      return dedupeLeaderboardEntries(apiEntries).slice(0, LEADERBOARD_LIMIT);
     }
   } catch {
     // Fall through.
@@ -281,15 +317,22 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
 
   if (initFirebase() && db) {
     try {
-      const q = query(collection(db, 'leaderboard'), orderBy('score', 'desc'), limit(50));
+      const q = query(
+        collection(db, 'leaderboard'),
+        orderBy('score', 'desc'),
+        limit(LEADERBOARD_FETCH_LIMIT),
+      );
       const snap = await getDocs(q);
-      return snap.docs.map((d) => d.data() as LeaderboardEntry);
+      return dedupeLeaderboardEntries(snap.docs.map((d) => d.data() as LeaderboardEntry)).slice(
+        0,
+        LEADERBOARD_LIMIT,
+      );
     } catch {
       // Fall through.
     }
   }
 
-  return getLocalLeaderboard();
+  return dedupeLeaderboardEntries(getLocalLeaderboard()).slice(0, LEADERBOARD_LIMIT);
 }
 
 export async function syncCoinLeaderboardEntry(profile: CoinLeaderboardEntry): Promise<void> {
