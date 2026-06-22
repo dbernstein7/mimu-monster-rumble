@@ -42,6 +42,15 @@ export const AUTH_LAYOUT = {
   backY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
 } as const;
 
+export function getAuthContentLayout(hasBorder: boolean) {
+  const topInner = AUTH_PANEL.y + (hasBorder ? 72 : 24);
+  return {
+    titleY: topInner,
+    formTopY: topInner + 42,
+    backY: AUTH_PANEL.y + AUTH_PANEL.height - (hasBorder ? 52 : 28),
+  };
+}
+
 function submitLabel(mode: AuthFormMode): string {
   return mode === 'register' ? 'CREATE ACCOUNT' : 'LOG IN';
 }
@@ -308,6 +317,7 @@ function positionAuthUi(
   overlay: HTMLElement,
   backBtn: HTMLElement,
   scene: Phaser.Scene,
+  layout: { formTopY: number; backY: number },
 ): void {
   const container = document.getElementById('game-container');
   const canvas = scene.game.canvas;
@@ -323,8 +333,8 @@ function positionAuthUi(
   const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
   const canvasScale = canvasRect.width / GAME_WIDTH;
   const centerX = GAME_WIDTH / 2;
-  const formTop = gamePointToContainer(centerX, AUTH_LAYOUT.formTopY, canvasRect, containerRect);
-  const backCenter = gamePointToContainer(centerX, AUTH_LAYOUT.backY, canvasRect, containerRect);
+  const formTop = gamePointToContainer(centerX, layout.formTopY, canvasRect, containerRect);
+  const backCenter = gamePointToContainer(centerX, layout.backY, canvasRect, containerRect);
 
   const formWidth = panelWidth * (mobile ? 0.9 : 0.84);
   const backWidth = panelWidth * 0.4;
@@ -368,8 +378,11 @@ export function mountAuthForm(
     showContinue?: boolean;
     onContinue?: () => void;
     onForgotPassword?: () => void;
+    layout?: { formTopY: number; backY: number };
   },
 ): AuthFormHandle {
+  const layout = options?.layout ?? AUTH_LAYOUT;
+
   destroyAuthFormOverlay();
   ensureStyles();
 
@@ -476,8 +489,8 @@ export function mountAuthForm(
   overlay.append(subtitle, tabs, root, continueBtn);
   shell.append(overlay, backBtn);
   container.appendChild(shell);
-  positionAuthUi(shell, overlay, backBtn, scene);
-  requestAnimationFrame(() => positionAuthUi(shell, overlay, backBtn, scene));
+  positionAuthUi(shell, overlay, backBtn, scene, layout);
+  requestAnimationFrame(() => positionAuthUi(shell, overlay, backBtn, scene, layout));
 
   let mode: AuthFormMode = initialMode;
 
@@ -548,7 +561,7 @@ export function mountAuthForm(
 
   const syncPosition = (): void => {
     if (shell.isConnected) {
-      positionAuthUi(shell, overlay, backBtn, scene);
+      positionAuthUi(shell, overlay, backBtn, scene, layout);
     }
   };
   scene.scale.on('resize', syncPosition);

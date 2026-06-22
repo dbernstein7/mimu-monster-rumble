@@ -128,9 +128,17 @@ export function hasLeaderboardBorderTexture(scene: Phaser.Scene): boolean {
 }
 
 export function addLeaderboardBorder(scene: Phaser.Scene, depth = 1): Phaser.GameObjects.Image | null {
+  return addPanelBorder(scene, LEADERBOARD_PANEL, depth);
+}
+
+export function addPanelBorder(
+  scene: Phaser.Scene,
+  panel: { x: number; y: number; width: number; height: number },
+  depth = 1,
+): Phaser.GameObjects.Image | null {
   if (!hasLeaderboardBorderTexture(scene)) return null;
 
-  const { x, y, width, height } = LEADERBOARD_PANEL;
+  const { x, y, width, height } = panel;
   const border = scene.add
     .image(x + width / 2, y + height / 2, LEADERBOARD_BORDER_TEXTURE_KEY)
     .setOrigin(0.5)

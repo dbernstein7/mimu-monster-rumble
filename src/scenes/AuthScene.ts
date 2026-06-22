@@ -15,14 +15,25 @@ import {
 import { GAME_WIDTH } from '../config/gameConstants';
 import { focusGameSurface } from '../utils/sceneNav';
 import {
+  addPanelBorder,
+  hasLeaderboardBorderTexture,
+} from '../assets/uiAssets';
+import {
   drawSolidBackdrop,
   createGlowTitle,
   createStyledButton,
   drawPanel,
   mountFullscreenButton,
   UI_FONTS,
+  UI_COLORS,
 } from '../ui/theme';
-import { AUTH_PANEL, destroyAuthFormOverlay, mountAuthForm, type AuthFormHandle } from '../ui/authForm';
+import {
+  AUTH_PANEL,
+  destroyAuthFormOverlay,
+  getAuthContentLayout,
+  mountAuthForm,
+  type AuthFormHandle,
+} from '../ui/authForm';
 
 export default class AuthScene extends Phaser.Scene {
   private nextScene = 'MainMenuScene';
@@ -47,22 +58,38 @@ export default class AuthScene extends Phaser.Scene {
     drawSolidBackdrop(this, 0x000000);
     mountFullscreenButton(this);
 
-    const panel = this.add.graphics();
-    drawPanel(panel, AUTH_PANEL.x, AUTH_PANEL.y, AUTH_PANEL.width, AUTH_PANEL.height);
+    const hasBorder = hasLeaderboardBorderTexture(this);
+    const layout = getAuthContentLayout(hasBorder);
 
-    createGlowTitle(this, GAME_WIDTH / 2, 130, 'ACCOUNT', '32px');
+    const panel = this.add.graphics().setDepth(0);
+    if (hasBorder) {
+      panel.fillStyle(UI_COLORS.panel, 0.92);
+      panel.fillRoundedRect(
+        AUTH_PANEL.x,
+        AUTH_PANEL.y,
+        AUTH_PANEL.width,
+        AUTH_PANEL.height,
+        14,
+      );
+      addPanelBorder(this, AUTH_PANEL);
+    } else {
+      drawPanel(panel, AUTH_PANEL.x, AUTH_PANEL.y, AUTH_PANEL.width, AUTH_PANEL.height);
+    }
+
+    createGlowTitle(this, GAME_WIDTH / 2, layout.titleY, 'ACCOUNT', '32px', 6);
 
     const cloudReady = isFirebaseEnabled();
     if (!cloudReady) {
       this.add
-        .text(GAME_WIDTH / 2, 168, getCloudAuthRequiredMessage(), {
+        .text(GAME_WIDTH / 2, layout.formTopY - 18, getCloudAuthRequiredMessage(), {
           fontFamily: UI_FONTS.body,
           fontSize: '13px',
           color: '#ff4757',
           align: 'center',
           wordWrap: { width: AUTH_PANEL.width - 80 },
         })
-        .setOrigin(0.5);
+        .setOrigin(0.5)
+        .setDepth(6);
     }
 
     const signedIn = !this.fromLogout && !!getCurrentUser();
@@ -77,6 +104,7 @@ export default class AuthScene extends Phaser.Scene {
           showContinue: signedIn,
           onContinue: () => this.goToNextScene(),
           onForgotPassword: () => void this.handleForgotPassword(),
+          layout: { formTopY: layout.formTopY, backY: layout.backY },
         },
       );
       this.authForm.setMode(this.mode);
