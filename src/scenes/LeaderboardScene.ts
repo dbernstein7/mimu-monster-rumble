@@ -5,6 +5,7 @@ import { probeLiveLeaderboard } from '../services/leaderboardApi';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
   addLeaderboardBorder,
+  getLeaderboardContentLayout,
   hasLeaderboardBorderTexture,
   LEADERBOARD_PANEL,
 } from '../assets/uiAssets';
@@ -15,6 +16,7 @@ import {
   mountFullscreenButton,
   subtitleStyle,
   UI_FONTS,
+  UI_COLORS,
   labelStyle,
 } from '../ui/theme';
 import type { CoinLeaderboardEntry, LeaderboardEntry } from '../types/game';
@@ -37,27 +39,40 @@ export default class LeaderboardScene extends Phaser.Scene {
   private tabScoresLabel?: Phaser.GameObjects.Text;
   private tabCoinsLabel?: Phaser.GameObjects.Text;
   private tabUnderline?: Phaser.GameObjects.Graphics;
+  private layout = getLeaderboardContentLayout(false);
 
   constructor() {
     super({ key: 'LeaderboardScene' });
   }
 
   create(): void {
+    const hasBorder = hasLeaderboardBorderTexture(this);
+    this.layout = getLeaderboardContentLayout(hasBorder);
+
     this.cameras.main.setBackgroundColor('#000000');
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000).setDepth(-20);
     mountFullscreenButton(this);
     createGlowTitle(this, GAME_WIDTH / 2, 50, 'LEADERBOARD', '34px');
 
     const panel = this.add.graphics().setDepth(0);
-    drawPanel(panel, LEADERBOARD_PANEL.x, LEADERBOARD_PANEL.y, LEADERBOARD_PANEL.width, LEADERBOARD_PANEL.height);
-    if (hasLeaderboardBorderTexture(this)) {
-      addLeaderboardBorder(this, 1);
+    if (hasBorder) {
+      panel.fillStyle(UI_COLORS.panel, 0.92);
+      panel.fillRoundedRect(
+        LEADERBOARD_PANEL.x,
+        LEADERBOARD_PANEL.y,
+        LEADERBOARD_PANEL.width,
+        LEADERBOARD_PANEL.height,
+        14,
+      );
+      addLeaderboardBorder(this);
+    } else {
+      drawPanel(panel, LEADERBOARD_PANEL.x, LEADERBOARD_PANEL.y, LEADERBOARD_PANEL.width, LEADERBOARD_PANEL.height);
     }
 
     this.statusText = this.add
       .text(GAME_WIDTH / 2, 88, '', subtitleStyle('13px'))
       .setOrigin(0.5)
-      .setDepth(1);
+      .setDepth(5);
 
     this.createTabs();
     this.updateHeaders();
@@ -71,7 +86,7 @@ export default class LeaderboardScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .setDepth(1);
+      .setDepth(5);
     back.on('pointerover', () => back.setColor('#ffc857'));
     back.on('pointerout', () => back.setColor('#a89bc4'));
     back.on('pointerdown', () => this.scene.start('MainMenuScene'));
@@ -80,11 +95,11 @@ export default class LeaderboardScene extends Phaser.Scene {
   }
 
   private createTabs(): void {
-    const tabY = 118;
+    const tabY = this.layout.tabY;
     const scoresX = GAME_WIDTH / 2 - 130;
     const coinsX = GAME_WIDTH / 2 + 130;
 
-    this.tabUnderline = this.add.graphics().setDepth(2);
+    this.tabUnderline = this.add.graphics().setDepth(6);
 
     this.tabScoresLabel = this.add
       .text(scoresX, tabY, 'HIGH SCORES', {
@@ -95,7 +110,7 @@ export default class LeaderboardScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .setDepth(2);
+      .setDepth(6);
 
     this.tabCoinsLabel = this.add
       .text(coinsX, tabY, 'TOTAL COINS', {
@@ -106,7 +121,7 @@ export default class LeaderboardScene extends Phaser.Scene {
       })
       .setOrigin(0.5)
       .setInteractive({ useHandCursor: true })
-      .setDepth(2);
+      .setDepth(6);
 
     const selectScores = () => {
       if (this.activeTab === 'scores') return;
@@ -162,31 +177,31 @@ export default class LeaderboardScene extends Phaser.Scene {
 
   private beginContentContainer(): Phaser.GameObjects.Container {
     this.clearList();
-    const container = this.add.container(0, 0).setDepth(2);
+    const container = this.add.container(0, 0).setDepth(6);
     this.listContainer = container;
     return container;
   }
 
   private updateHeaders(): void {
-    const headerY = 152;
+    const headerY = this.layout.headerY;
     const configs =
       this.activeTab === 'scores'
         ? [
-            { x: 110, text: '#' },
-            { x: 150, text: 'PLAYER' },
-            { x: 520, text: 'MIMUS' },
-            { x: 900, text: 'SCORE' },
+            { x: this.layout.colHash, text: '#' },
+            { x: this.layout.colPlayer, text: 'PLAYER' },
+            { x: this.layout.colMimus, text: 'MIMUS' },
+            { x: this.layout.colScore, text: 'SCORE' },
           ]
         : [
-            { x: 110, text: '#' },
-            { x: 150, text: 'ACCOUNT' },
-            { x: 900, text: 'TOTAL' },
+            { x: this.layout.colHash, text: '#' },
+            { x: this.layout.colPlayer, text: 'ACCOUNT' },
+            { x: this.layout.colScore, text: 'TOTAL' },
           ];
 
     if (this.headerLabels.length !== configs.length) {
       this.headerLabels.forEach((label) => label.destroy());
       this.headerLabels = configs.map(({ x, text }) =>
-        this.add.text(x, headerY, text, labelStyle()).setDepth(1),
+        this.add.text(x, headerY, text, labelStyle()).setDepth(6),
       );
       return;
     }
@@ -207,7 +222,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         color: '#c9b8e8',
       })
       .setOrigin(0.5)
-      .setDepth(1);
+      .setDepth(6);
 
     if (this.activeTab === 'scores') {
       const entries = await fetchLeaderboard();
@@ -265,22 +280,22 @@ export default class LeaderboardScene extends Phaser.Scene {
     const container = this.beginContentContainer();
 
     entries.slice(0, 12).forEach((entry, i) => {
-      const y = 192 + i * 34;
+      const y = this.layout.rowStartY + i * this.layout.rowHeight;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];
 
       if (i % 2 === 0) {
         const row = this.add.graphics();
         row.fillStyle(0xffffff, 0.04);
-        row.fillRoundedRect(100, y - 12, GAME_WIDTH - 200, 30, 6);
+        row.fillRoundedRect(this.layout.rowRectX, y - 12, this.layout.rowRectW, 30, 6);
         container.add(row);
       }
 
       container.add(
-        this.add.text(110, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
+        this.add.text(this.layout.colHash, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
       );
       container.add(
-        this.add.text(150, y, entry.username.slice(0, 16), {
+        this.add.text(this.layout.colPlayer, y, entry.username.slice(0, 16), {
           fontFamily: UI_FONTS.body,
           fontSize: '16px',
           color: '#f5f0ff',
@@ -288,13 +303,13 @@ export default class LeaderboardScene extends Phaser.Scene {
         }),
       );
       container.add(
-        this.add.text(520, y, formatScoreMimus(entry), {
+        this.add.text(this.layout.colMimus, y, formatScoreMimus(entry), {
           ...subtitleStyle('13px'),
           wordWrap: { width: 340 },
         }),
       );
       container.add(
-        this.add.text(900, y, formatScore(entry.score), {
+        this.add.text(this.layout.colScore, y, formatScore(entry.score), {
           fontFamily: UI_FONTS.body,
           fontSize: '16px',
           color: '#2ed573',
@@ -308,22 +323,22 @@ export default class LeaderboardScene extends Phaser.Scene {
     const container = this.beginContentContainer();
 
     entries.slice(0, 12).forEach((entry, i) => {
-      const y = 192 + i * 34;
+      const y = this.layout.rowStartY + i * this.layout.rowHeight;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];
 
       if (i % 2 === 0) {
         const row = this.add.graphics();
         row.fillStyle(0xffffff, 0.04);
-        row.fillRoundedRect(100, y - 12, GAME_WIDTH - 200, 30, 6);
+        row.fillRoundedRect(this.layout.rowRectX, y - 12, this.layout.rowRectW, 30, 6);
         container.add(row);
       }
 
       container.add(
-        this.add.text(110, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
+        this.add.text(this.layout.colHash, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
       );
       container.add(
-        this.add.text(150, y, entry.username.slice(0, 20), {
+        this.add.text(this.layout.colPlayer, y, entry.username.slice(0, 20), {
           fontFamily: UI_FONTS.body,
           fontSize: '16px',
           color: '#f5f0ff',
@@ -331,7 +346,7 @@ export default class LeaderboardScene extends Phaser.Scene {
         }),
       );
       container.add(
-        this.add.text(900, y, formatScore(entry.totalCoins), {
+        this.add.text(this.layout.colScore, y, formatScore(entry.totalCoins), {
           fontFamily: UI_FONTS.body,
           fontSize: '16px',
           color: '#ffc857',

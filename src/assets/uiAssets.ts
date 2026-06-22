@@ -35,6 +35,27 @@ export const LEADERBOARD_PANEL = {
   height: 480,
 } as const;
 
+/** Scale border art so the frame wraps the panel edge (not shrunk inside it). */
+const LEADERBOARD_BORDER_WRAP = 1.06;
+
+/** Content offsets when the border frame is shown — clears the top ornament. */
+export function getLeaderboardContentLayout(hasBorder: boolean) {
+  const yShift = hasBorder ? 42 : 0;
+  const xPad = hasBorder ? 10 : 0;
+  return {
+    tabY: 118 + yShift,
+    headerY: 156 + yShift,
+    rowStartY: 196 + yShift,
+    rowHeight: 34,
+    colHash: 110 + xPad,
+    colPlayer: 150 + xPad,
+    colMimus: 520,
+    colScore: 900,
+    rowRectX: 100 + xPad,
+    rowRectW: GAME_WIDTH - 200 - xPad * 2,
+  };
+}
+
 /** Shared width for wide menu button art (1242×293 source). */
 export const MENU_BUTTON_DISPLAY_WIDTH = 300;
 /** Title graphic (1496×783 source). */
@@ -108,7 +129,7 @@ export function addLeaderboardBorder(scene: Phaser.Scene, depth = 1): Phaser.Gam
     .setOrigin(0.5)
     .setDepth(depth);
 
-  const scale = Math.min(width / border.width, height / border.height);
+  const scale = Math.max(width / border.width, height / border.height) * LEADERBOARD_BORDER_WRAP;
   border.setScale(scale);
   return border;
 }
