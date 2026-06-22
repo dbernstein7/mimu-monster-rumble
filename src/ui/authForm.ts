@@ -167,11 +167,11 @@ function ensureStyles(): void {
       display: flex;
       flex-direction: column;
       gap: 0.5rem;
-      padding: 0.75rem 0.85rem 0.85rem;
-      border-radius: 12px;
-      background: rgba(14, 6, 24, 0.88);
-      border: 2px solid rgba(255, 200, 87, 0.35);
-      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+      padding: 0.25rem 0.1rem 0.35rem;
+      border-radius: 0;
+      background: transparent;
+      border: none;
+      box-shadow: none;
       font-family: 'Exo 2', system-ui, sans-serif;
       color: #f5f0ff;
       box-sizing: border-box;
@@ -273,15 +273,15 @@ function ensureStyles(): void {
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit {
       min-height: 46px;
     }
-    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-title,
-    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-subtitle,
-    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-tabs {
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile.mimu-auth-keyboard-open .mimu-auth-title,
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile.mimu-auth-keyboard-open .mimu-auth-subtitle,
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile.mimu-auth-keyboard-open .mimu-auth-tabs {
       display: none;
     }
-    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-action.mimu-auth-back {
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile.mimu-auth-keyboard-open .mimu-auth-action.mimu-auth-back {
       display: none;
     }
-    .${OVERLAY_CLASS}.mimu-auth-keyboard-open {
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile.mimu-auth-keyboard-open {
       gap: 0.25rem;
     }
   `;
@@ -306,8 +306,8 @@ function panelRectInWindow(
 }
 
 function isKeyboardLayoutActive(): boolean {
-  if (isAuthInputFocused()) return true;
   if (!isMobileTouchDevice()) return false;
+  if (isAuthInputFocused()) return true;
   const vv = window.visualViewport;
   if (!vv) return false;
   const threshold = isIOSWebKit() ? 0.88 : 0.82;
@@ -353,7 +353,10 @@ function positionAuthUi(
   shell.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
   overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
   overlay.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
-  document.body.classList.toggle('mimu-auth-input-focused', isAuthInputFocused());
+  document.body.classList.toggle(
+    'mimu-auth-input-focused',
+    mobile && isAuthInputFocused(),
+  );
 
   if (keyboardOpen && mobile) {
     const pad = isIOSWebKit() ? 4 : 8;
@@ -462,6 +465,7 @@ export function mountAuthForm(
   root.className = FORM_CLASS;
   root.setAttribute('autocomplete', 'on');
   root.setAttribute('aria-label', 'Account sign in');
+  root.noValidate = true;
 
   const usernameWrap = document.createElement('div');
   const usernameLabel = document.createElement('label');
@@ -486,6 +490,9 @@ export function mountAuthForm(
   emailInput.type = 'email';
   emailInput.autocomplete = 'email';
   emailInput.inputMode = 'email';
+  emailInput.setAttribute('autocapitalize', 'off');
+  emailInput.setAttribute('autocorrect', 'off');
+  emailInput.spellcheck = false;
   emailInput.placeholder = 'you@example.com';
   emailWrap.append(emailLabel, emailInput);
 
@@ -591,12 +598,14 @@ export function mountAuthForm(
     input.addEventListener('keydown', stopGameKeys);
     input.addEventListener('keyup', stopGameKeys);
     input.addEventListener('focus', () => {
+      if (!isMobileTouchDevice()) return;
       scheduleAuthReposition(() => {
         syncPosition();
         scrollAuthInputIntoView(input, scroll);
       });
     });
     input.addEventListener('blur', () => {
+      if (!isMobileTouchDevice()) return;
       window.setTimeout(syncPosition, 120);
     });
   }
