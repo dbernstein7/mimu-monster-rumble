@@ -28,17 +28,19 @@ function ensureStyles(): void {
     .${BTN_CLASS} {
       position: fixed;
       pointer-events: auto;
-      border: 2px solid rgba(168, 155, 196, 0.45);
-      border-radius: 12px;
-      padding: 0.72rem 1.75rem;
-      min-height: 44px;
+      border: 1px solid rgba(168, 155, 196, 0.45);
+      border-radius: 8px;
+      padding: 5px 14px;
+      min-height: 28px;
       font-family: 'Exo 2', system-ui, sans-serif;
-      font-size: 16px;
+      font-size: 13px;
       font-weight: 700;
+      line-height: 1.1;
       color: #ffffff;
       background: rgba(46, 26, 74, 0.94);
       cursor: pointer;
       box-sizing: border-box;
+      outline: none;
       -webkit-tap-highlight-color: transparent;
       touch-action: manipulation;
     }
@@ -46,12 +48,15 @@ function ensureStyles(): void {
       border-color: #ffc857;
       color: #ffc857;
     }
+    .${BTN_CLASS}:focus,
+    .${BTN_CLASS}:focus-visible {
+      outline: none;
+    }
     .${SHELL_CLASS}.mimu-char-select-shell--mobile .${BTN_CLASS} {
-      padding: 0.4rem 0.85rem;
-      min-height: 34px;
-      font-size: 12px;
-      border-radius: 8px;
-      border-width: 1px;
+      padding: 4px 10px;
+      min-height: 22px;
+      font-size: 11px;
+      border-radius: 6px;
     }
   `;
   document.head.appendChild(style);
@@ -81,7 +86,7 @@ export function mountCharacterSelectBackButton(
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.className = BTN_CLASS;
-  btn.textContent = '← BACK';
+  btn.textContent = isMobileTouchDevice() ? 'BACK' : '← BACK';
 
   const handleBack = (event: Event): void => {
     event.preventDefault();
@@ -99,7 +104,7 @@ export function mountCharacterSelectBackButton(
     if (!shell.isConnected) return;
     const screen = getCanvasScreenRect(scene);
     if (!screen) return;
-    positionHtmlAtGamePoint(btn, BACK_GAME_X, BACK_GAME_Y, screen, 'bottom-center');
+    positionHtmlAtGamePoint(btn, BACK_GAME_X, BACK_GAME_Y, screen, 'bottom-center', screen.scale);
   };
 
   const unbind = bindSceneOverlayPosition(scene, syncPosition);

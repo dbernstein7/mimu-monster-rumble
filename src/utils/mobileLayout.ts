@@ -89,11 +89,13 @@ export function positionHtmlAtGamePoint(
   gameY: number,
   screen: CanvasScreenRect,
   anchor: HtmlGameAnchor = 'center',
+  uiScale = 1,
 ): void {
   const scaleX = screen.width / GAME_WIDTH;
   const scaleY = screen.height / GAME_HEIGHT;
   const screenX = screen.left + gameX * scaleX;
   const screenY = screen.top + gameY * scaleY;
+  const scaleSuffix = uiScale === 1 ? '' : ` scale(${uiScale})`;
 
   el.style.position = 'fixed';
   el.style.left = `${screenX}px`;
@@ -102,20 +104,23 @@ export function positionHtmlAtGamePoint(
   if (anchor === 'center') {
     el.style.top = `${screenY}px`;
     el.style.bottom = 'auto';
-    el.style.transform = 'translate(-50%, -50%)';
+    el.style.transformOrigin = 'center center';
+    el.style.transform = `translate(-50%, -50%)${scaleSuffix}`;
     return;
   }
 
   if (anchor === 'bottom-center') {
     el.style.top = `${screenY}px`;
     el.style.bottom = 'auto';
-    el.style.transform = 'translate(-50%, -100%)';
+    el.style.transformOrigin = 'bottom center';
+    el.style.transform = `translate(-50%, -100%)${scaleSuffix}`;
     return;
   }
 
   el.style.top = `${screenY}px`;
   el.style.bottom = 'auto';
-  el.style.transform = 'translate(-50%, 0)';
+  el.style.transformOrigin = 'top center';
+  el.style.transform = `translate(-50%, 0)${scaleSuffix}`;
 }
 
 export function bindSceneOverlayPosition(scene: Phaser.Scene, sync: () => void): () => void {
