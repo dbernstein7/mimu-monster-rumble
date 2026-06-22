@@ -9,6 +9,7 @@ import {
   subtitleStyle,
   UI_FONTS,
 } from '../ui/theme';
+import { mountControlsButton } from '../ui/controlsOverlay';
 import type { CharacterId } from '../types/game';
 import { isMobileTouchDevice } from '../utils/device';
 import { unlockMobileAudio } from '../utils/audioUnlock';
@@ -92,6 +93,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#000000');
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000).setDepth(-20);
     mountFullscreenButton(this);
+    mountControlsButton(this);
 
     const level = getLevel(this.targetLevelIndex);
     const titleText = this.continueRun ? `LEVEL ${this.targetLevelIndex + 1} — CHOOSE YOUR HERO` : 'CHOOSE YOUR MIMU';

@@ -27,6 +27,7 @@ import { RUN_MIMU1_KEY } from '../utils/runState';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
+import { mountControlsButton } from '../ui/controlsOverlay';
 import { getEnemySpriteConfig } from '../config/enemySprites';
 import {
   BOSS_MUSIC_INTRO_MS,
@@ -119,6 +120,18 @@ export default class GameScene extends Phaser.Scene {
       const fsPos = getFullscreenButtonBottomRightPosition();
       mountFullscreenButton(this, fsPos.x, fsPos.y);
     }
+
+    let openedPauseForControls = false;
+    mountControlsButton(this, {
+      onOpen: () => {
+        openedPauseForControls = !this.paused;
+        if (!this.paused) this.setPaused(true, { silent: true });
+      },
+      onClose: () => {
+        if (openedPauseForControls) this.setPaused(false, { silent: true });
+        openedPauseForControls = false;
+      },
+    });
 
     this.enemies = this.add.group();
     this.coins = this.add.group();
@@ -807,13 +820,18 @@ export default class GameScene extends Phaser.Scene {
     this.setPaused(!this.paused);
   }
 
-  private setPaused(paused: boolean): void {
+  private setPaused(paused: boolean, options?: { silent?: boolean }): void {
     if (this.exitingToMenu) return;
     if (this.paused === paused) return;
     this.paused = paused;
-    this.pauseOverlay.setVisible(paused);
-    this.pauseMenuButtons.forEach((obj) => obj.setVisible(paused));
-    this.hud.setPauseButtonVisible(!paused);
+    const showOverlay = !options?.silent;
+    this.pauseOverlay.setVisible(paused && showOverlay);
+    this.pauseMenuButtons.forEach((obj) => obj.setVisible(paused && showOverlay));
+    if (showOverlay) {
+      this.hud.setPauseButtonVisible(!paused);
+    } else if (!paused) {
+      this.hud.setPauseButtonVisible(true);
+    }
 
     if (paused) {
       this.player.setVelocity(0, 0);

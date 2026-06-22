@@ -20,6 +20,7 @@ const LOG_OUT_BUTTON_URL = pickUiUrl(/LogOut\.png$/i);
 const TITLE_URL = pickUiUrl(/Title\.png$/i);
 const MENU_BACKGROUND_URL = pickUiUrl(/Background\.png$/i);
 const LEADERBOARD_BORDER_URL = pickUiUrl(/LeaderboardBorder\.png$/i);
+const CONTROLS_URL = pickUiUrl(/Controls\.png$/i);
 
 export const PLAY_BUTTON_TEXTURE_KEY = 'ui_play_button';
 export const LEADERBOARD_BUTTON_TEXTURE_KEY = 'ui_leaderboard_button';
@@ -29,6 +30,7 @@ export const LOG_OUT_BUTTON_TEXTURE_KEY = 'ui_log_out_button';
 export const TITLE_TEXTURE_KEY = 'ui_title';
 export const MENU_BACKGROUND_TEXTURE_KEY = 'ui_menu_background';
 export const LEADERBOARD_BORDER_TEXTURE_KEY = 'ui_leaderboard_border';
+export const CONTROLS_TEXTURE_KEY = 'ui_controls';
 
 /** Leaderboard table panel (1280×720 game space). */
 export const LEADERBOARD_PANEL = {
@@ -89,6 +91,7 @@ const UI_TEXTURE_KEYS = [
   TITLE_TEXTURE_KEY,
   MENU_BACKGROUND_TEXTURE_KEY,
   LEADERBOARD_BORDER_TEXTURE_KEY,
+  CONTROLS_TEXTURE_KEY,
 ] as const;
 
 export function loadUiTextures(scene: Phaser.Scene): void {
@@ -101,6 +104,7 @@ export function loadUiTextures(scene: Phaser.Scene): void {
     [TITLE_TEXTURE_KEY, TITLE_URL],
     [MENU_BACKGROUND_TEXTURE_KEY, MENU_BACKGROUND_URL],
     [LEADERBOARD_BORDER_TEXTURE_KEY, LEADERBOARD_BORDER_URL],
+    [CONTROLS_TEXTURE_KEY, CONTROLS_URL],
   ];
 
   entries.forEach(([key, url]) => {
@@ -138,6 +142,10 @@ export function hasMenuBackgroundTexture(scene: Phaser.Scene): boolean {
 
 export function hasLeaderboardBorderTexture(scene: Phaser.Scene): boolean {
   return scene.textures.exists(LEADERBOARD_BORDER_TEXTURE_KEY);
+}
+
+export function hasControlsTexture(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(CONTROLS_TEXTURE_KEY);
 }
 
 export function addLeaderboardBorder(scene: Phaser.Scene, depth = 1): Phaser.GameObjects.Image | null {

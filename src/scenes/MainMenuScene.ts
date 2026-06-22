@@ -37,6 +37,7 @@ import {
   SIGN_IN_BUTTON_TEXTURE_KEY,
 } from '../assets/uiAssets';
 import { destroyAuthFormOverlay } from '../ui/authForm';
+import { mountControlsButton } from '../ui/controlsOverlay';
 import { focusGameSurface } from '../utils/sceneNav';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
@@ -405,6 +406,8 @@ export default class MainMenuScene extends Phaser.Scene {
       fullscreenBtn?.setAlpha(MAIN_MENU_FULLSCREEN_BUTTON_ALPHA);
       if (fullscreenBtn) this.menuUi.add(fullscreenBtn);
     }
+
+    mountControlsButton(this);
 
     this.refreshHighlight();
   }
