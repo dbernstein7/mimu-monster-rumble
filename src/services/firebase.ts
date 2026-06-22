@@ -29,6 +29,13 @@ import { fetchLeaderboardFromApi, submitScoreToApi } from './leaderboardApi';
 
 export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
 
+export type LeaderboardSource = 'global' | 'local';
+
+export interface LeaderboardFetchResult {
+  entries: LeaderboardEntry[];
+  source: LeaderboardSource;
+}
+
 const LOCAL_KEY = 'mimu_leaderboard';
 const PLAYER_ID_KEY = 'mimu:playerId';
 const LEADERBOARD_LIMIT = 50;
@@ -267,6 +274,17 @@ export function onAuthChange(callback: (user: User | null) => void): (() => void
 }
 
 export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTarget> {
+  let savedTo: ScoreSaveTarget = 'local';
+
+  try {
+    const apiResult = await submitScoreToApi(entry);
+    if (apiResult.ok && apiResult.configured !== false) {
+      savedTo = 'api';
+    }
+  } catch {
+    // Fall through to Firebase / local storage.
+  }
+
   if (initFirebase() && auth?.currentUser && db) {
     try {
       const ref = doc(db, 'leaderboard', entry.userId);
@@ -274,23 +292,21 @@ export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTar
       if (existing.exists()) {
         const prev = existing.data() as LeaderboardEntry;
         if (prev.score >= entry.score) {
-          return 'firebase';
+          return savedTo === 'local' ? 'firebase' : savedTo;
         }
       }
       await setDoc(ref, entry);
-      return 'firebase';
+      if (savedTo === 'local') {
+        savedTo = 'firebase';
+      }
+      return savedTo;
     } catch {
-      // Fall through to shared API / local storage.
+      // Fall through to local storage.
     }
   }
 
-  try {
-    const apiResult = await submitScoreToApi(entry);
-    if (apiResult.ok && apiResult.configured !== false) {
-      return 'api';
-    }
-  } catch {
-    // Fall through to local storage.
+  if (savedTo !== 'local') {
+    return savedTo;
   }
 
   const board = getLocalLeaderboard();
@@ -305,11 +321,15 @@ export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTar
   return 'local';
 }
 
-export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
+export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
+  const collected: LeaderboardEntry[] = [];
+  let global = false;
+
   try {
     const apiEntries = await fetchLeaderboardFromApi();
     if (apiEntries !== null) {
-      return dedupeLeaderboardEntries(apiEntries).slice(0, LEADERBOARD_LIMIT);
+      collected.push(...apiEntries);
+      global = true;
     }
   } catch {
     // Fall through.
@@ -323,16 +343,24 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
         limit(LEADERBOARD_FETCH_LIMIT),
       );
       const snap = await getDocs(q);
-      return dedupeLeaderboardEntries(snap.docs.map((d) => d.data() as LeaderboardEntry)).slice(
-        0,
-        LEADERBOARD_LIMIT,
-      );
+      collected.push(...snap.docs.map((d) => d.data() as LeaderboardEntry));
+      global = true;
     } catch {
       // Fall through.
     }
   }
 
-  return dedupeLeaderboardEntries(getLocalLeaderboard()).slice(0, LEADERBOARD_LIMIT);
+  if (global) {
+    return {
+      entries: dedupeLeaderboardEntries(collected).slice(0, LEADERBOARD_LIMIT),
+      source: 'global',
+    };
+  }
+
+  return {
+    entries: dedupeLeaderboardEntries(getLocalLeaderboard()).slice(0, LEADERBOARD_LIMIT),
+    source: 'local',
+  };
 }
 
 export async function syncCoinLeaderboardEntry(profile: CoinLeaderboardEntry): Promise<void> {

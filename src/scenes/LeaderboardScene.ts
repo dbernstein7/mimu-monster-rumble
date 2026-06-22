@@ -1,7 +1,6 @@
 import Phaser from 'phaser';
 import { fetchCoinLeaderboard, fetchLeaderboard, isFirebaseEnabled } from '../services/firebase';
 import { loadUserProfile } from '../services/userProfile';
-import { probeLiveLeaderboard } from '../services/leaderboardApi';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
   addLeaderboardBorder,
@@ -229,9 +228,10 @@ export default class LeaderboardScene extends Phaser.Scene {
       .setDepth(6);
 
     if (this.activeTab === 'scores') {
-      const entries = await fetchLeaderboard();
-      const live = await probeLiveLeaderboard();
-      this.statusText?.setText(live ? 'Live global scores' : 'Showing scores saved on this device');
+      const { entries, source } = await fetchLeaderboard();
+      this.statusText?.setText(
+        source === 'global' ? 'Live global scores' : 'Showing scores saved on this device',
+      );
       this.loadingText?.destroy();
       this.loadingText = undefined;
 
