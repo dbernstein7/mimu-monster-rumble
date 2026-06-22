@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
-import { isMobileTouchDevice } from '../utils/device';
+import { isAuthInputFocused, isIOSWebKit, isMobileTouchDevice } from '../utils/device';
 
 export type AuthFormMode = 'login' | 'register';
 
@@ -71,13 +71,20 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
     .${SHELL_CLASS} {
-      position: absolute;
+      position: fixed;
       inset: 0;
-      z-index: 20;
+      z-index: 10000;
       pointer-events: none;
     }
+    .${SHELL_CLASS}.mimu-auth-keyboard-open::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: #000000;
+      z-index: -1;
+    }
     .${OVERLAY_CLASS} {
-      position: absolute;
+      position: fixed;
       display: flex;
       flex-direction: column;
       align-items: stretch;
@@ -85,6 +92,7 @@ function ensureStyles(): void {
       pointer-events: auto;
       box-sizing: border-box;
       overflow: hidden;
+      margin: 0;
     }
     .${SCROLL_CLASS} {
       flex: 1 1 auto;
@@ -280,13 +288,12 @@ function ensureStyles(): void {
   document.head.appendChild(style);
 }
 
-function panelRectInContainer(
+function panelRectInWindow(
   canvasRect: DOMRect,
-  containerRect: DOMRect,
   insets: AuthPanelInsets,
 ): { left: number; top: number; width: number; height: number } {
-  const baseLeft = canvasRect.left - containerRect.left + (AUTH_PANEL.x / GAME_WIDTH) * canvasRect.width;
-  const baseTop = canvasRect.top - containerRect.top + (AUTH_PANEL.y / GAME_HEIGHT) * canvasRect.height;
+  const baseLeft = canvasRect.left + (AUTH_PANEL.x / GAME_WIDTH) * canvasRect.width;
+  const baseTop = canvasRect.top + (AUTH_PANEL.y / GAME_HEIGHT) * canvasRect.height;
   const baseWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
   const baseHeight = (AUTH_PANEL.height / GAME_HEIGHT) * canvasRect.height;
 
@@ -298,38 +305,73 @@ function panelRectInContainer(
   };
 }
 
-function isMobileKeyboardOpen(): boolean {
+function isKeyboardLayoutActive(): boolean {
+  if (isAuthInputFocused()) return true;
   if (!isMobileTouchDevice()) return false;
   const vv = window.visualViewport;
   if (!vv) return false;
-  return vv.height < window.innerHeight * 0.82;
+  const threshold = isIOSWebKit() ? 0.88 : 0.82;
+  return vv.height < window.innerHeight * threshold;
+}
+
+function scheduleAuthReposition(sync: () => void): void {
+  sync();
+  requestAnimationFrame(sync);
+  for (const delay of [100, 250, 500]) {
+    window.setTimeout(sync, delay);
+  }
+}
+
+function scrollAuthInputIntoView(input: HTMLElement, scroll: HTMLElement): void {
+  const inputRect = input.getBoundingClientRect();
+  const scrollRect = scroll.getBoundingClientRect();
+  const margin = 12;
+  const below = inputRect.bottom - scrollRect.bottom + margin;
+  if (below > 0) {
+    scroll.scrollTop += below;
+    return;
+  }
+  const above = scrollRect.top - inputRect.top + margin;
+  if (above > 0) {
+    scroll.scrollTop = Math.max(0, scroll.scrollTop - above);
+  }
 }
 
 function positionAuthUi(
+  shell: HTMLElement,
   overlay: HTMLElement,
   scene: Phaser.Scene,
   layout: AuthUILayout,
 ): void {
-  const container = document.getElementById('game-container');
   const canvas = scene.game.canvas;
-  if (!container || !canvas) return;
+  if (!canvas) return;
 
   const mobile = isMobileTouchDevice();
-  const keyboardOpen = isMobileKeyboardOpen();
-  overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
-  overlay.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
-
-  const containerRect = container.getBoundingClientRect();
+  const keyboardOpen = isKeyboardLayoutActive();
   const vv = window.visualViewport;
 
-  if (mobile && keyboardOpen && vv) {
-    const pad = 8;
-    const left = vv.offsetLeft - containerRect.left + pad;
-    const top = vv.offsetTop - containerRect.top + pad;
-    const width = Math.max(200, vv.width - pad * 2);
-    const height = Math.max(140, vv.height - pad * 2);
+  shell.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
+  overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
+  overlay.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
+  document.body.classList.toggle('mimu-auth-input-focused', isAuthInputFocused());
 
-    overlay.style.left = `${left}px`;
+  if (keyboardOpen && mobile) {
+    const pad = isIOSWebKit() ? 4 : 8;
+    const vvShrunk = !!vv && vv.height < window.innerHeight * (isIOSWebKit() ? 0.88 : 0.82);
+
+    if (vvShrunk && vv) {
+      overlay.style.left = `${vv.offsetLeft + pad}px`;
+      overlay.style.top = `${vv.offsetTop + pad}px`;
+      overlay.style.width = `${Math.max(200, vv.width - pad * 2)}px`;
+      overlay.style.height = `${Math.max(120, vv.height - pad * 2)}px`;
+      return;
+    }
+
+    // iOS Safari + interactive-widget=overlays-content: keyboard overlays without shrinking vv.
+    const top = (vv?.offsetTop ?? 0) + pad;
+    const width = Math.max(200, (vv?.width ?? window.innerWidth) - pad * 2);
+    const height = Math.max(120, Math.round(window.innerHeight * 0.44));
+    overlay.style.left = `${(vv?.offsetLeft ?? 0) + pad}px`;
     overlay.style.top = `${top}px`;
     overlay.style.width = `${width}px`;
     overlay.style.height = `${height}px`;
@@ -337,7 +379,7 @@ function positionAuthUi(
   }
 
   const canvasRect = canvas.getBoundingClientRect();
-  const rect = panelRectInContainer(canvasRect, containerRect, layout.panelInsets);
+  const rect = panelRectInWindow(canvasRect, layout.panelInsets);
 
   overlay.style.left = `${rect.left}px`;
   overlay.style.top = `${rect.top}px`;
@@ -347,6 +389,7 @@ function positionAuthUi(
 
 /** Remove auth HTML so it never blocks canvas clicks after leaving the account page. */
 export function destroyAuthFormOverlay(): void {
+  document.body.classList.remove('mimu-auth-input-focused');
   document
     .querySelectorAll(`.${SHELL_CLASS}, .${OVERLAY_CLASS}, .${SCROLL_CLASS}, .${FORM_CLASS}, #${LEGACY_FORM_ID}`)
     .forEach((node) => {
@@ -492,16 +535,15 @@ export function mountAuthForm(
 
   overlay.append(scroll, backBtn);
   shell.append(overlay);
-  container.appendChild(shell);
+  document.body.appendChild(shell);
 
   const syncPosition = (): void => {
     if (shell.isConnected) {
-      positionAuthUi(overlay, scene, layout);
+      positionAuthUi(shell, overlay, scene, layout);
     }
   };
 
-  positionAuthUi(overlay, scene, layout);
-  requestAnimationFrame(syncPosition);
+  scheduleAuthReposition(syncPosition);
   scene.scale.on('resize', syncPosition);
   window.addEventListener('resize', syncPosition);
   window.visualViewport?.addEventListener('resize', syncPosition);
@@ -549,13 +591,13 @@ export function mountAuthForm(
     input.addEventListener('keydown', stopGameKeys);
     input.addEventListener('keyup', stopGameKeys);
     input.addEventListener('focus', () => {
-      requestAnimationFrame(() => {
+      scheduleAuthReposition(() => {
         syncPosition();
-        input.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+        scrollAuthInputIntoView(input, scroll);
       });
     });
     input.addEventListener('blur', () => {
-      requestAnimationFrame(syncPosition);
+      window.setTimeout(syncPosition, 120);
     });
   }
 
@@ -592,6 +634,7 @@ export function mountAuthForm(
     window.removeEventListener('resize', syncPosition);
     window.visualViewport?.removeEventListener('resize', syncPosition);
     window.visualViewport?.removeEventListener('scroll', syncPosition);
+    document.body.classList.remove('mimu-auth-input-focused');
     shell.remove();
   };
 
