@@ -17,6 +17,7 @@ const SIGN_IN_BUTTON_URL = pickUiUrl(/SignIn\.png$/i);
 const LOG_OUT_BUTTON_URL = pickUiUrl(/LogOut\.png$/i);
 const TITLE_URL = pickUiUrl(/Title\.png$/i);
 const MENU_BACKGROUND_URL = pickUiUrl(/Background\.png$/i);
+const LEADERBOARD_BORDER_URL = pickUiUrl(/LeaderboardBorder\.png$/i);
 
 export const PLAY_BUTTON_TEXTURE_KEY = 'ui_play_button';
 export const LEADERBOARD_BUTTON_TEXTURE_KEY = 'ui_leaderboard_button';
@@ -24,6 +25,15 @@ export const SIGN_IN_BUTTON_TEXTURE_KEY = 'ui_sign_in_button';
 export const LOG_OUT_BUTTON_TEXTURE_KEY = 'ui_log_out_button';
 export const TITLE_TEXTURE_KEY = 'ui_title';
 export const MENU_BACKGROUND_TEXTURE_KEY = 'ui_menu_background';
+export const LEADERBOARD_BORDER_TEXTURE_KEY = 'ui_leaderboard_border';
+
+/** Leaderboard table panel (1280×720 game space). */
+export const LEADERBOARD_PANEL = {
+  x: 80,
+  y: 100,
+  width: GAME_WIDTH - 160,
+  height: 480,
+} as const;
 
 /** Shared width for wide menu button art (1242×293 source). */
 export const MENU_BUTTON_DISPLAY_WIDTH = 300;
@@ -42,6 +52,7 @@ const UI_TEXTURE_KEYS = [
   LOG_OUT_BUTTON_TEXTURE_KEY,
   TITLE_TEXTURE_KEY,
   MENU_BACKGROUND_TEXTURE_KEY,
+  LEADERBOARD_BORDER_TEXTURE_KEY,
 ] as const;
 
 export function loadUiTextures(scene: Phaser.Scene): void {
@@ -52,6 +63,7 @@ export function loadUiTextures(scene: Phaser.Scene): void {
     [LOG_OUT_BUTTON_TEXTURE_KEY, LOG_OUT_BUTTON_URL],
     [TITLE_TEXTURE_KEY, TITLE_URL],
     [MENU_BACKGROUND_TEXTURE_KEY, MENU_BACKGROUND_URL],
+    [LEADERBOARD_BORDER_TEXTURE_KEY, LEADERBOARD_BORDER_URL],
   ];
 
   entries.forEach(([key, url]) => {
@@ -81,6 +93,24 @@ export function hasTitleTexture(scene: Phaser.Scene): boolean {
 
 export function hasMenuBackgroundTexture(scene: Phaser.Scene): boolean {
   return scene.textures.exists(MENU_BACKGROUND_TEXTURE_KEY);
+}
+
+export function hasLeaderboardBorderTexture(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(LEADERBOARD_BORDER_TEXTURE_KEY);
+}
+
+export function addLeaderboardBorder(scene: Phaser.Scene, depth = 1): Phaser.GameObjects.Image | null {
+  if (!hasLeaderboardBorderTexture(scene)) return null;
+
+  const { x, y, width, height } = LEADERBOARD_PANEL;
+  const border = scene.add
+    .image(x + width / 2, y + height / 2, LEADERBOARD_BORDER_TEXTURE_KEY)
+    .setOrigin(0.5)
+    .setDepth(depth);
+
+  const scale = Math.min(width / border.width, height / border.height);
+  border.setScale(scale);
+  return border;
 }
 
 export function addMenuBackground(scene: Phaser.Scene, depth = -10): Phaser.GameObjects.Image | null {

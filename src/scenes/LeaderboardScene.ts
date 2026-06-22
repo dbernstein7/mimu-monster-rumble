@@ -4,6 +4,11 @@ import { loadUserProfile } from '../services/userProfile';
 import { probeLiveLeaderboard } from '../services/leaderboardApi';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
+  addLeaderboardBorder,
+  hasLeaderboardBorderTexture,
+  LEADERBOARD_PANEL,
+} from '../assets/uiAssets';
+import {
   createGlowTitle,
   drawPanel,
   formatScore,
@@ -43,8 +48,11 @@ export default class LeaderboardScene extends Phaser.Scene {
     mountFullscreenButton(this);
     createGlowTitle(this, GAME_WIDTH / 2, 50, 'LEADERBOARD', '34px');
 
-    const panel = this.add.graphics();
-    drawPanel(panel, 80, 100, GAME_WIDTH - 160, 480);
+    const panel = this.add.graphics().setDepth(0);
+    drawPanel(panel, LEADERBOARD_PANEL.x, LEADERBOARD_PANEL.y, LEADERBOARD_PANEL.width, LEADERBOARD_PANEL.height);
+    if (hasLeaderboardBorderTexture(this)) {
+      addLeaderboardBorder(this, 1);
+    }
 
     this.statusText = this.add
       .text(GAME_WIDTH / 2, 88, '', subtitleStyle('13px'))
