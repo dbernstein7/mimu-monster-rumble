@@ -26,8 +26,9 @@ import { bankRunCoins } from '../services/userProfile';
 import { RUN_MIMU1_KEY } from '../utils/runState';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
-import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, UI_FONTS } from '../ui/theme';
+import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, drawPanel, UI_FONTS } from '../ui/theme';
 import { mountControlsButton } from '../ui/controlsOverlay';
+import { createPanelBorderImage, hasLeaderboardBorderTexture } from '../assets/uiAssets';
 import { getEnemySpriteConfig } from '../config/enemySprites';
 import {
   BOSS_MUSIC_INTRO_MS,
@@ -48,6 +49,31 @@ import {
   type LevelMusicHandle,
 } from '../assets/musicAssets';
 import { pruneEnemyMovementSfx, setCombatSfxPaused, stopAllCombatSfx } from '../assets/soundFxAssets';
+
+/** Pause menu panel — same border treatment as leaderboard / account / game over. */
+const PAUSE_PANEL = {
+  x: Math.round((GAME_WIDTH - 520) / 2),
+  y: Math.round((GAME_HEIGHT - 300) / 2),
+  width: 520,
+  height: 300,
+} as const;
+
+function getPauseContentLayout(hasBorder: boolean) {
+  const insets = hasBorder
+    ? { top: 0.18, bottom: 0.12 }
+    : { top: 0.08, bottom: 0.08 };
+
+  const innerTop = PAUSE_PANEL.y + PAUSE_PANEL.height * insets.top;
+  const innerBottom = PAUSE_PANEL.y + PAUSE_PANEL.height * (1 - insets.bottom);
+  const innerHeight = innerBottom - innerTop;
+
+  return {
+    titleY: innerTop + innerHeight * 0.14,
+    resumeY: innerTop + innerHeight * 0.46,
+    quitY: innerTop + innerHeight * 0.66,
+    hintY: innerTop + innerHeight * 0.9,
+  };
+}
 
 export default class GameScene extends Phaser.Scene {
   player!: Player;
@@ -945,16 +971,26 @@ export default class GameScene extends Phaser.Scene {
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.78)
       .setScrollFactor(0);
 
-    const panel = this.add.graphics().setScrollFactor(0);
-    panel.fillStyle(0x140a24, 0.95);
-    panel.fillRoundedRect(GAME_WIDTH / 2 - 200, GAME_HEIGHT / 2 - 120, 400, 240, 20);
-    panel.lineStyle(2, 0x7b4bb8, 1);
-    panel.strokeRoundedRect(GAME_WIDTH / 2 - 200, GAME_HEIGHT / 2 - 120, 400, 240, 20);
+    const hasBorder = hasLeaderboardBorderTexture(this);
+    const layout = getPauseContentLayout(hasBorder);
+    const panelObjects: Phaser.GameObjects.GameObject[] = [];
+
+    if (hasBorder) {
+      const border = createPanelBorderImage(this, PAUSE_PANEL);
+      if (border) {
+        border.setScrollFactor(0);
+        panelObjects.push(border);
+      }
+    } else {
+      const panel = this.add.graphics().setScrollFactor(0);
+      drawPanel(panel, PAUSE_PANEL.x, PAUSE_PANEL.y, PAUSE_PANEL.width, PAUSE_PANEL.height);
+      panelObjects.push(panel);
+    }
 
     const title = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 50, 'PAUSED', {
+      .text(GAME_WIDTH / 2, layout.titleY, 'PAUSED', {
         fontFamily: '"Orbitron", sans-serif',
-        fontSize: '36px',
+        fontSize: '32px',
         color: '#ffc857',
         fontStyle: 'bold',
       })
@@ -962,26 +998,26 @@ export default class GameScene extends Phaser.Scene {
       .setScrollFactor(0);
 
     const hint = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 45, 'ESC / P  ·  Q quits to menu', {
-        fontFamily: '"Exo 2", sans-serif',
+      .text(GAME_WIDTH / 2, layout.hintY, 'ESC / P  ·  Q quits to menu', {
+        fontFamily: UI_FONTS.body,
         fontSize: '13px',
         color: '#8a7aa8',
       })
       .setOrigin(0.5)
       .setScrollFactor(0);
 
-    this.pauseOverlay.add([blocker, panel, title, hint]);
+    this.pauseOverlay.add([blocker, ...panelObjects, title, hint]);
 
     this.pauseMenuButtons = [
       ...this.addPauseMenuButton(
-        GAME_HEIGHT / 2 + 5,
+        layout.resumeY,
         '▶  RESUME',
         '#2ed573',
         '#ffc857',
         () => this.setPaused(false),
       ),
       ...this.addPauseMenuButton(
-        GAME_HEIGHT / 2 + 80,
+        layout.quitY,
         'QUIT TO MENU',
         '#ff4757',
         '#ffc857',
