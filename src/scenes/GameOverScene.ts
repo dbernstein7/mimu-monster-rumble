@@ -5,12 +5,18 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import { getCurrentUser, submitScore, type ScoreSaveTarget } from '../services/firebase';
 import { bankRunCoins } from '../services/userProfile';
 import {
+  addPanelBorder,
+  hasLeaderboardBorderTexture,
   hasLeaderboardButtonTexture,
+  hasMainMenuButtonTexture,
   LEADERBOARD_BUTTON_TEXTURE_KEY,
+  MAIN_MENU_BUTTON_TEXTURE_KEY,
   MENU_BUTTON_DISPLAY_WIDTH,
 } from '../assets/uiAssets';
 import {
   createHeadlineGlowTitle,
+  createImageMenuButton,
+  createStyledButton,
   drawPanel,
   formatScore,
   mountFullscreenButton,
@@ -25,7 +31,20 @@ import {
   MAIN_MENU_INPUT_GUARD_MS,
   MAIN_MENU_SCENE_KEY,
 } from '../utils/sceneNav';
-import { destroyGameOverOverlay, mountGameOverNav } from '../ui/gameOverOverlay';
+import { destroyGameOverOverlay } from '../ui/gameOverOverlay';
+
+/** Score summary panel — same border treatment as leaderboard / account. */
+const GAME_OVER_PANEL = {
+  x: Math.round((GAME_WIDTH - 560) / 2),
+  y: 120,
+  width: 560,
+  height: 320,
+} as const;
+
+const NAV_BUTTON_Y = {
+  first: 490,
+  second: 560,
+} as const;
 
 function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): string {
   const second = getCharacter(mimu2).name;
@@ -49,6 +68,7 @@ export default class GameOverScene extends Phaser.Scene {
     won?: boolean;
   }): void {
     this.leaving = false;
+    destroyGameOverOverlay();
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();
 
@@ -65,8 +85,13 @@ export default class GameOverScene extends Phaser.Scene {
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000).setDepth(-20);
     mountFullscreenButton(this);
 
-    const panel = this.add.graphics();
-    drawPanel(panel, GAME_WIDTH / 2 - 280, 120, 560, 320);
+    const hasBorder = hasLeaderboardBorderTexture(this);
+    if (hasBorder) {
+      addPanelBorder(this, GAME_OVER_PANEL);
+    } else {
+      const panel = this.add.graphics().setDepth(0);
+      drawPanel(panel, GAME_OVER_PANEL.x, GAME_OVER_PANEL.y, GAME_OVER_PANEL.width, GAME_OVER_PANEL.height);
+    }
 
     createHeadlineGlowTitle(
       this,
@@ -124,67 +149,43 @@ export default class GameOverScene extends Phaser.Scene {
       statusText.setColor('#a89bc4');
     }
 
-    this.drawNavButtonArt(won);
-
-    mountGameOverNav(this, {
-      won,
-      onMainMenu: () => this.goToMainMenu(),
-      onLeaderboard: () => this.goToLeaderboard(),
-    });
+    this.createNavButtons(won);
   }
 
   shutdown(): void {
     destroyGameOverOverlay();
   }
 
-  /** Decorative canvas art only — real clicks use the HTML overlay. */
-  private drawNavButtonArt(won: boolean): void {
-    if (won) {
-      this.addLeaderboardArt(GAME_WIDTH / 2, 490);
-      this.addMainMenuArt(GAME_WIDTH / 2, 560);
-      return;
-    }
+  private createNavButtons(won: boolean): void {
+    const leaderboardY = won ? NAV_BUTTON_Y.first : NAV_BUTTON_Y.second;
+    const mainMenuY = won ? NAV_BUTTON_Y.second : NAV_BUTTON_Y.first;
+    const cx = GAME_WIDTH / 2;
 
-    this.addMainMenuArt(GAME_WIDTH / 2, 490);
-    this.addLeaderboardArt(GAME_WIDTH / 2, 560);
-  }
-
-  private addLeaderboardArt(x: number, y: number): void {
     if (hasLeaderboardButtonTexture(this)) {
-      const image = this.add.image(x, y, LEADERBOARD_BUTTON_TEXTURE_KEY).setOrigin(0.5).setDepth(5);
-      const scale = MENU_BUTTON_DISPLAY_WIDTH / image.width;
-      image.setScale(scale);
-      return;
+      createImageMenuButton(
+        this,
+        cx,
+        leaderboardY,
+        LEADERBOARD_BUTTON_TEXTURE_KEY,
+        MENU_BUTTON_DISPLAY_WIDTH,
+        () => this.goToLeaderboard(),
+      );
+    } else {
+      createStyledButton(this, cx, leaderboardY, 'LEADERBOARD', () => this.goToLeaderboard());
     }
 
-    this.add
-      .text(x, y, 'LEADERBOARD', {
-        fontFamily: UI_FONTS.body,
-        fontSize: '20px',
-        color: '#5dffe0',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setDepth(5);
-  }
-
-  private addMainMenuArt(x: number, y: number): void {
-    const g = this.add.graphics().setDepth(5);
-    const width = 300;
-    g.fillStyle(0x2e1a4a, 0.88);
-    g.fillRoundedRect(x - width / 2, y - 26, width, 52, 12);
-    g.lineStyle(2, 0xa89bc4, 1);
-    g.strokeRoundedRect(x - width / 2, y - 26, width, 52, 12);
-
-    this.add
-      .text(x, y, 'MAIN MENU', {
-        fontFamily: UI_FONTS.body,
-        fontSize: '20px',
-        color: '#ffffff',
-        fontStyle: 'bold',
-      })
-      .setOrigin(0.5)
-      .setDepth(6);
+    if (hasMainMenuButtonTexture(this)) {
+      createImageMenuButton(
+        this,
+        cx,
+        mainMenuY,
+        MAIN_MENU_BUTTON_TEXTURE_KEY,
+        MENU_BUTTON_DISPLAY_WIDTH,
+        () => this.goToMainMenu(),
+      );
+    } else {
+      createStyledButton(this, cx, mainMenuY, 'MAIN MENU', () => this.goToMainMenu());
+    }
   }
 
   private async saveRunResults(

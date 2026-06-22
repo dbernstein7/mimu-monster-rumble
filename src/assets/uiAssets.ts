@@ -14,6 +14,7 @@ function pickUiUrl(pattern: RegExp): string | undefined {
 
 const PLAY_BUTTON_URL = pickUiUrl(/Play-Button\.png$/i);
 const LEADERBOARD_BUTTON_URL = pickUiUrl(/Leaderboard\.png$/i);
+const MAIN_MENU_BUTTON_URL = pickUiUrl(/MainMenu\.png$/i);
 const SIGN_IN_BUTTON_URL = pickUiUrl(/SignIn\.png$/i);
 const LOG_OUT_BUTTON_URL = pickUiUrl(/LogOut\.png$/i);
 const TITLE_URL = pickUiUrl(/Title\.png$/i);
@@ -22,6 +23,7 @@ const LEADERBOARD_BORDER_URL = pickUiUrl(/LeaderboardBorder\.png$/i);
 
 export const PLAY_BUTTON_TEXTURE_KEY = 'ui_play_button';
 export const LEADERBOARD_BUTTON_TEXTURE_KEY = 'ui_leaderboard_button';
+export const MAIN_MENU_BUTTON_TEXTURE_KEY = 'ui_main_menu_button';
 export const SIGN_IN_BUTTON_TEXTURE_KEY = 'ui_sign_in_button';
 export const LOG_OUT_BUTTON_TEXTURE_KEY = 'ui_log_out_button';
 export const TITLE_TEXTURE_KEY = 'ui_title';
@@ -81,6 +83,7 @@ export const MAIN_MENU_FULLSCREEN_BUTTON_ALPHA = 0.82;
 const UI_TEXTURE_KEYS = [
   PLAY_BUTTON_TEXTURE_KEY,
   LEADERBOARD_BUTTON_TEXTURE_KEY,
+  MAIN_MENU_BUTTON_TEXTURE_KEY,
   SIGN_IN_BUTTON_TEXTURE_KEY,
   LOG_OUT_BUTTON_TEXTURE_KEY,
   TITLE_TEXTURE_KEY,
@@ -92,6 +95,7 @@ export function loadUiTextures(scene: Phaser.Scene): void {
   const entries: [string, string | undefined][] = [
     [PLAY_BUTTON_TEXTURE_KEY, PLAY_BUTTON_URL],
     [LEADERBOARD_BUTTON_TEXTURE_KEY, LEADERBOARD_BUTTON_URL],
+    [MAIN_MENU_BUTTON_TEXTURE_KEY, MAIN_MENU_BUTTON_URL],
     [SIGN_IN_BUTTON_TEXTURE_KEY, SIGN_IN_BUTTON_URL],
     [LOG_OUT_BUTTON_TEXTURE_KEY, LOG_OUT_BUTTON_URL],
     [TITLE_TEXTURE_KEY, TITLE_URL],
@@ -110,6 +114,10 @@ export function hasPlayButtonTexture(scene: Phaser.Scene): boolean {
 
 export function hasLeaderboardButtonTexture(scene: Phaser.Scene): boolean {
   return scene.textures.exists(LEADERBOARD_BUTTON_TEXTURE_KEY);
+}
+
+export function hasMainMenuButtonTexture(scene: Phaser.Scene): boolean {
+  return scene.textures.exists(MAIN_MENU_BUTTON_TEXTURE_KEY);
 }
 
 export function hasSignInButtonTexture(scene: Phaser.Scene): boolean {
