@@ -15,7 +15,6 @@ import {
   mountFullscreenButton,
   subtitleStyle,
   UI_FONTS,
-  UI_COLORS,
   labelStyle,
 } from '../ui/theme';
 import type { CoinLeaderboardEntry, LeaderboardEntry } from '../types/game';
@@ -53,18 +52,10 @@ export default class LeaderboardScene extends Phaser.Scene {
     mountFullscreenButton(this);
     createGlowTitle(this, GAME_WIDTH / 2, this.layout.titleY, 'LEADERBOARD', '34px', 6);
 
-    const panel = this.add.graphics().setDepth(0);
     if (hasBorder) {
-      panel.fillStyle(UI_COLORS.panel, 0.92);
-      panel.fillRoundedRect(
-        LEADERBOARD_PANEL.x,
-        LEADERBOARD_PANEL.y,
-        LEADERBOARD_PANEL.width,
-        LEADERBOARD_PANEL.height,
-        14,
-      );
       addLeaderboardBorder(this);
     } else {
+      const panel = this.add.graphics().setDepth(0);
       drawPanel(panel, LEADERBOARD_PANEL.x, LEADERBOARD_PANEL.y, LEADERBOARD_PANEL.width, LEADERBOARD_PANEL.height);
     }
 

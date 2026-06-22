@@ -25,7 +25,6 @@ import {
   drawPanel,
   mountFullscreenButton,
   UI_FONTS,
-  UI_COLORS,
 } from '../ui/theme';
 import {
   AUTH_PANEL,
@@ -61,18 +60,10 @@ export default class AuthScene extends Phaser.Scene {
     const hasBorder = hasLeaderboardBorderTexture(this);
     const layout = getAuthContentLayout(hasBorder);
 
-    const panel = this.add.graphics().setDepth(0);
     if (hasBorder) {
-      panel.fillStyle(UI_COLORS.panel, 0.92);
-      panel.fillRoundedRect(
-        AUTH_PANEL.x,
-        AUTH_PANEL.y,
-        AUTH_PANEL.width,
-        AUTH_PANEL.height,
-        14,
-      );
       addPanelBorder(this, AUTH_PANEL);
     } else {
+      const panel = this.add.graphics().setDepth(0);
       drawPanel(panel, AUTH_PANEL.x, AUTH_PANEL.y, AUTH_PANEL.width, AUTH_PANEL.height);
     }
 
