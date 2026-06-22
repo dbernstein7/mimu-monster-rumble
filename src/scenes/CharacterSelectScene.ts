@@ -54,6 +54,79 @@ function getCardLayout() {
   };
 }
 
+const LORE_LEFT_X = 52;
+const LORE_MAX_WIDTH = 400;
+const LORE_GAP_FROM_CARDS = 72;
+
+function shouldShowCharacterSelectLore(): boolean {
+  return !isMobileTouchDevice();
+}
+
+function getCardGridCenterX(cardWidth: number, columnGap: number, showLore: boolean): number {
+  if (!showLore) return GAME_WIDTH / 2;
+  const leftColumnCenter =
+    LORE_LEFT_X + LORE_MAX_WIDTH + LORE_GAP_FROM_CARDS + cardWidth / 2;
+  return leftColumnCenter + cardWidth / 2 + columnGap / 2;
+}
+
+function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
+  const maxWidth = LORE_MAX_WIDTH;
+  let y = startY;
+  const paragraphGap = 20;
+  const bodyStyle = {
+    fontFamily: UI_FONTS.body,
+    fontSize: '13px',
+    color: '#c9b8e8',
+    wordWrap: { width: maxWidth },
+    lineSpacing: 8,
+  } as const;
+
+  const headline = scene.add
+    .text(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
+      fontFamily: UI_FONTS.headline,
+      fontSize: '18px',
+      color: '#ffc857',
+      fontStyle: 'bold',
+      wordWrap: { width: maxWidth },
+      lineSpacing: 6,
+    })
+    .setOrigin(0, 0)
+    .setDepth(2);
+  y += headline.height + paragraphGap;
+
+  const bodyOne = scene.add
+    .text(
+      LORE_LEFT_X,
+      y,
+      'A mysterious corruption is spreading across the world of Mimu, twisting innocent creatures into terrifying monsters.',
+      bodyStyle,
+    )
+    .setOrigin(0, 0)
+    .setDepth(2);
+  y += bodyOne.height + paragraphGap;
+
+  const bodyTwo = scene.add
+    .text(
+      LORE_LEFT_X,
+      y,
+      'As one of the four legendary Guardians—master of Fire, Frost, Nature, or Void—you are the last hope against the growing darkness.',
+      bodyStyle,
+    )
+    .setOrigin(0, 0)
+    .setDepth(2);
+  y += bodyTwo.height + paragraphGap;
+
+  scene.add
+    .text(
+      LORE_LEFT_X,
+      y,
+      'Battle endless waves of corrupted enemies, unlock powerful abilities, recover the lost Guardian Fragments, and destroy the Chaos Core before Mimu is consumed by Chaos forever.',
+      bodyStyle,
+    )
+    .setOrigin(0, 0)
+    .setDepth(2);
+}
+
 export default class CharacterSelectScene extends Phaser.Scene {
   private selectedIndex = 0;
   private cardImages: (Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle)[] = [];
@@ -96,17 +169,13 @@ export default class CharacterSelectScene extends Phaser.Scene {
     mountControlsButton(this);
 
     const level = getLevel(this.targetLevelIndex);
+    const showLore = shouldShowCharacterSelectLore();
     const titleText = this.continueRun ? `LEVEL ${this.targetLevelIndex + 1} — CHOOSE YOUR HERO` : 'CHOOSE YOUR MIMU';
     const subtitleText = this.continueRun
       ? `Pick a fighter for ${level.name}  ·  Score & coins carry over`
       : isMobileTouchDevice()
         ? 'Tap a card to select  ·  Use BACK to return'
         : 'D-Pad to browse  ·  A to confirm';
-
-    createHeadlineGlowTitle(this, GAME_WIDTH / 2, isMobileTouchDevice() ? 42 : 50, titleText, this.continueRun ? '28px' : isMobileTouchDevice() ? '30px' : '36px');
-    this.add
-      .text(GAME_WIDTH / 2, isMobileTouchDevice() ? 76 : 88, subtitleText, subtitleStyle('14px'))
-      .setOrigin(0.5);
 
     const cardLayout = getCardLayout();
     const sampleFrame = hasCharacterSelectCard(this, 'voidWarrior')
@@ -118,7 +187,24 @@ export default class CharacterSelectScene extends Phaser.Scene {
       cardLayout.maxWidth,
       cardLayout.maxHeight,
     );
-    const centerX = GAME_WIDTH / 2;
+    const centerX = getCardGridCenterX(cardSize.width, cardLayout.columnGap, showLore);
+    const titleX = showLore ? centerX : GAME_WIDTH / 2;
+
+    createHeadlineGlowTitle(
+      this,
+      titleX,
+      isMobileTouchDevice() ? 42 : 50,
+      titleText,
+      this.continueRun ? '28px' : isMobileTouchDevice() ? '30px' : '36px',
+    );
+    this.add
+      .text(titleX, isMobileTouchDevice() ? 76 : 88, subtitleText, subtitleStyle('14px'))
+      .setOrigin(0.5);
+
+    if (showLore) {
+      mountCharacterSelectLore(this, isMobileTouchDevice() ? 108 : 118);
+    }
+
     const colX = [
       centerX - cardSize.width / 2 - cardLayout.columnGap / 2,
       centerX + cardSize.width / 2 + cardLayout.columnGap / 2,
