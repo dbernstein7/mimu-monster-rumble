@@ -20,7 +20,6 @@ import {
 } from '../assets/uiAssets';
 import {
   drawSolidBackdrop,
-  createGlowTitle,
   createStyledButton,
   drawPanel,
   mountFullscreenButton,
@@ -67,12 +66,10 @@ export default class AuthScene extends Phaser.Scene {
       drawPanel(panel, AUTH_PANEL.x, AUTH_PANEL.y, AUTH_PANEL.width, AUTH_PANEL.height);
     }
 
-    createGlowTitle(this, GAME_WIDTH / 2, layout.titleY, 'ACCOUNT', '32px', 6);
-
     const cloudReady = isFirebaseEnabled();
     if (!cloudReady) {
       this.add
-        .text(GAME_WIDTH / 2, layout.formTopY - 18, getCloudAuthRequiredMessage(), {
+        .text(GAME_WIDTH / 2, AUTH_PANEL.y + AUTH_PANEL.height * 0.35, getCloudAuthRequiredMessage(), {
           fontFamily: UI_FONTS.body,
           fontSize: '13px',
           color: '#ff4757',
@@ -95,7 +92,7 @@ export default class AuthScene extends Phaser.Scene {
           showContinue: signedIn,
           onContinue: () => this.goToNextScene(),
           onForgotPassword: () => void this.handleForgotPassword(),
-          layout: { formTopY: layout.formTopY, panelBottomY: layout.panelBottomY },
+          layout,
         },
       );
       this.authForm.setMode(this.mode);

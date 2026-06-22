@@ -22,45 +22,42 @@ export interface AuthFormHandle {
 
 const STYLE_ID = 'mimu-auth-form-styles';
 const OVERLAY_CLASS = 'mimu-auth-overlay';
+const SCROLL_CLASS = 'mimu-auth-scroll';
 const SHELL_CLASS = 'mimu-auth-shell';
 const FORM_CLASS = 'mimu-auth-form';
 const LEGACY_FORM_ID = 'mimu-auth-form';
 
-/** Matches AuthScene panel — ~78% of game width so it scales on every screen. */
+/** Centered panel aligned with the border frame (1280×720). */
 export const AUTH_PANEL = {
   x: Math.round((GAME_WIDTH - GAME_WIDTH * 0.78) / 2),
-  y: 48,
+  y: 72,
   width: Math.round(GAME_WIDTH * 0.78),
-  height: Math.round(GAME_HEIGHT * 0.84),
-  contentTop: 188,
+  height: Math.round(GAME_HEIGHT * 0.72),
 } as const;
 
-/** Game-space anchors for auth HTML (1280×720). */
-export const AUTH_LAYOUT = {
-  formTopY: 162,
-  panelBottomY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
-} as const;
-
-export interface AuthUILayout {
-  formTopY: number;
-  panelBottomY: number;
+export interface AuthPanelInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
 }
 
-export function getAuthContentLayout(hasBorder: boolean) {
+export interface AuthUILayout {
+  panelInsets: AuthPanelInsets;
+}
+
+export const AUTH_LAYOUT: AuthUILayout = {
+  panelInsets: { top: 0.1, right: 0.09, bottom: 0.11, left: 0.09 },
+};
+
+export function getAuthContentLayout(hasBorder: boolean): AuthUILayout {
   if (!hasBorder) {
-    const topInner = AUTH_PANEL.y + 24;
     return {
-      titleY: topInner,
-      formTopY: topInner + 42,
-      panelBottomY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
+      panelInsets: { top: 0.06, right: 0.08, bottom: 0.06, left: 0.08 },
     };
   }
-
-  const topInner = AUTH_PANEL.y + 108;
   return {
-    titleY: topInner,
-    formTopY: topInner + 64,
-    panelBottomY: AUTH_PANEL.y + AUTH_PANEL.height - 86,
+    panelInsets: { top: 0.14, right: 0.1, bottom: 0.13, left: 0.1 },
   };
 }
 
@@ -78,90 +75,81 @@ function ensureStyles(): void {
       inset: 0;
       z-index: 20;
       pointer-events: none;
-      --auth-ui-scale: 1;
     }
     .${OVERLAY_CLASS} {
       position: absolute;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      gap: calc(0.75rem * var(--auth-ui-scale));
+      align-items: stretch;
+      gap: 0.45rem;
       pointer-events: auto;
-      transform: translate(-50%, 0);
       box-sizing: border-box;
+      overflow: hidden;
+    }
+    .${SCROLL_CLASS} {
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow-x: hidden;
       overflow-y: auto;
       overscroll-behavior: contain;
       -webkit-overflow-scrolling: touch;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.45rem;
+      width: 100%;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(123, 75, 184, 0.55) transparent;
+    }
+    .${SCROLL_CLASS}::-webkit-scrollbar {
+      width: 6px;
+    }
+    .${SCROLL_CLASS}::-webkit-scrollbar-thumb {
+      background: rgba(123, 75, 184, 0.55);
+      border-radius: 4px;
+    }
+    .mimu-auth-title {
+      margin: 0;
+      font-family: 'Orbitron', 'Exo 2', system-ui, sans-serif;
+      font-size: clamp(1.35rem, 2.6vw, 2rem);
+      font-weight: 900;
+      letter-spacing: 0.06em;
+      text-align: center;
+      color: #ffc857;
+      text-shadow: 0 0 18px rgba(255, 140, 50, 0.45);
+      flex-shrink: 0;
     }
     .mimu-auth-subtitle {
       margin: 0;
       font-family: 'Exo 2', system-ui, sans-serif;
-      font-size: 13px;
+      font-size: clamp(0.68rem, 1.5vw, 0.82rem);
       color: #8a7aa8;
       text-align: center;
-      line-height: 1.45;
+      line-height: 1.4;
       max-width: 100%;
-      padding: 0 0.25rem;
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-subtitle {
-      font-size: calc(13px * var(--auth-ui-scale));
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile {
-      gap: 0.6rem;
-      padding: 0.15rem 0;
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--compact {
-      gap: calc(0.45rem * var(--auth-ui-scale));
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--compact .${FORM_CLASS} {
-      padding: calc(0.75rem * var(--auth-ui-scale)) calc(0.85rem * var(--auth-ui-scale));
-      gap: calc(0.45rem * var(--auth-ui-scale));
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-tabs button {
-      font-size: calc(15px * var(--auth-ui-scale));
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} {
-      padding: calc(1rem * var(--auth-ui-scale)) calc(1.1rem * var(--auth-ui-scale));
-      gap: calc(0.65rem * var(--auth-ui-scale));
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} input {
-      font-size: calc(16px * var(--auth-ui-scale));
-      padding: calc(0.72rem * var(--auth-ui-scale)) calc(0.85rem * var(--auth-ui-scale));
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .${FORM_CLASS} .mimu-auth-submit {
-      font-size: calc(1rem * var(--auth-ui-scale));
-      padding: calc(0.9rem * var(--auth-ui-scale)) calc(1rem * var(--auth-ui-scale));
-    }
-    .${SHELL_CLASS}:not(.mimu-auth-overlay--mobile) .mimu-auth-action.mimu-auth-back {
-      font-size: calc(18px * var(--auth-ui-scale));
-      padding: calc(0.72rem * var(--auth-ui-scale)) calc(1.5rem * var(--auth-ui-scale));
+      padding: 0 0.2rem;
+      flex-shrink: 0;
     }
     .mimu-auth-tabs {
       display: flex;
-      gap: 2rem;
+      gap: 1.5rem;
       justify-content: center;
       width: 100%;
+      flex-shrink: 0;
     }
     .mimu-auth-tabs button {
       border: none;
       background: transparent;
       font-family: 'Exo 2', system-ui, sans-serif;
-      font-size: 15px;
+      font-size: clamp(0.82rem, 1.6vw, 0.95rem);
       font-weight: 700;
       color: #a89bc4;
       cursor: pointer;
-      padding: 0.35rem 0.65rem;
-      min-height: 36px;
+      padding: 0.3rem 0.55rem;
+      min-height: 34px;
       -webkit-appearance: none;
       appearance: none;
-    }
-    .mimu-auth-tabs button:focus {
-      outline: none;
-    }
-    .mimu-auth-tabs button:focus-visible {
-      outline: 2px solid rgba(255, 200, 87, 0.55);
-      outline-offset: 2px;
-      border-radius: 6px;
     }
     .mimu-auth-tabs button.active {
       color: #ffc857;
@@ -170,18 +158,19 @@ function ensureStyles(): void {
       width: 100%;
       display: flex;
       flex-direction: column;
-      gap: 0.65rem;
-      padding: 1rem 1.1rem 1.15rem;
-      border-radius: 14px;
-      background: rgba(14, 6, 24, 0.94);
+      gap: 0.5rem;
+      padding: 0.75rem 0.85rem 0.85rem;
+      border-radius: 12px;
+      background: rgba(14, 6, 24, 0.88);
       border: 2px solid rgba(255, 200, 87, 0.35);
-      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
       font-family: 'Exo 2', system-ui, sans-serif;
       color: #f5f0ff;
       box-sizing: border-box;
+      flex-shrink: 0;
     }
     .${FORM_CLASS} label {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       letter-spacing: 0.06em;
       text-transform: uppercase;
       color: #a89bc4;
@@ -189,11 +178,11 @@ function ensureStyles(): void {
     .${FORM_CLASS} input {
       width: 100%;
       box-sizing: border-box;
-      border-radius: 10px;
+      border-radius: 8px;
       border: 1px solid rgba(168, 155, 196, 0.35);
       background: #1e1030;
       color: #f5f0ff;
-      padding: 0.72rem 0.85rem;
+      padding: 0.55rem 0.7rem;
       font-size: 16px;
       outline: none;
     }
@@ -201,12 +190,9 @@ function ensureStyles(): void {
       border-color: #ffc857;
       box-shadow: 0 0 0 2px rgba(255, 200, 87, 0.25);
     }
-    .${FORM_CLASS} input:disabled {
-      opacity: 0.65;
-    }
     .${FORM_CLASS} .mimu-auth-error {
-      min-height: 1.1rem;
-      font-size: 0.82rem;
+      min-height: 1rem;
+      font-size: 0.78rem;
       color: #ff4757;
       text-align: center;
       font-weight: 600;
@@ -216,122 +202,92 @@ function ensureStyles(): void {
     }
     .${FORM_CLASS} .mimu-auth-forgot {
       align-self: flex-end;
-      margin: -0.15rem 0 0;
+      margin: -0.1rem 0 0;
       border: none;
       background: transparent;
       color: #a89bc4;
-      font-size: 0.8rem;
+      font-size: 0.75rem;
       font-family: inherit;
       cursor: pointer;
-      padding: 0.15rem 0;
+      padding: 0.1rem 0;
       text-decoration: underline;
       text-underline-offset: 2px;
     }
-    .${FORM_CLASS} .mimu-auth-forgot:hover {
-      color: #ffc857;
-    }
-    .${FORM_CLASS} .mimu-auth-forgot:disabled {
-      opacity: 0.55;
-      cursor: wait;
-    }
     .${FORM_CLASS} .mimu-auth-hint {
-      font-size: 0.78rem;
+      font-size: 0.72rem;
       color: #8a7aa8;
       text-align: center;
-      line-height: 1.35;
+      line-height: 1.3;
       margin: 0;
     }
     .${FORM_CLASS} .mimu-auth-submit {
-      margin-top: 0.25rem;
+      margin-top: 0.15rem;
       border: none;
       border-radius: 999px;
-      padding: 0.9rem 1rem;
-      font-size: 1rem;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.92rem;
       font-weight: 700;
-      letter-spacing: 0.06em;
+      letter-spacing: 0.05em;
       color: #140a24;
       background: linear-gradient(180deg, #ffc857, #ff8c32);
       cursor: pointer;
       width: 100%;
-    }
-    .${FORM_CLASS} .mimu-auth-submit:disabled {
-      opacity: 0.65;
-      cursor: wait;
+      min-height: 42px;
     }
     .mimu-auth-action {
       border: 2px solid rgba(168, 155, 196, 0.45);
-      border-radius: 12px;
-      padding: 0.72rem 1.5rem;
+      border-radius: 10px;
+      padding: 0.55rem 1rem;
       font-family: 'Exo 2', system-ui, sans-serif;
-      font-size: 18px;
+      font-size: clamp(0.9rem, 1.8vw, 1.05rem);
       font-weight: 700;
       color: #ffffff;
       background: rgba(46, 26, 74, 0.92);
       cursor: pointer;
       box-sizing: border-box;
       pointer-events: auto;
+      width: 100%;
+      flex-shrink: 0;
+      min-height: 42px;
     }
     .mimu-auth-action:hover {
       border-color: #ffc857;
     }
     .mimu-auth-action.continue {
-      width: 100%;
       border-color: rgba(46, 213, 115, 0.55);
       background: rgba(20, 80, 50, 0.85);
-      max-width: 360px;
-    }
-    .mimu-auth-action.mimu-auth-back {
-      position: relative;
-      transform: none;
-      width: 100%;
-      max-width: 360px;
-      margin-top: calc(0.15rem * var(--auth-ui-scale));
-      flex-shrink: 0;
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-tabs button {
-      font-size: 14px;
-      min-height: 44px;
-      padding: 0.5rem 1rem;
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} {
-      padding: 0.85rem 0.95rem 1rem;
-      gap: 0.55rem;
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} label {
-      font-size: 0.72rem;
     }
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} input {
-      padding: 0.85rem 0.9rem;
-      min-height: 48px;
+      min-height: 44px;
+      padding: 0.7rem 0.75rem;
     }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-hint {
-      font-size: 0.74rem;
-    }
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit,
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action.continue,
-    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action.mimu-auth-back {
-      min-height: 48px;
-      font-size: 1rem;
-      max-width: none;
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .mimu-auth-action,
+    .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit {
+      min-height: 46px;
     }
   `;
   document.head.appendChild(style);
 }
 
-function gamePointToContainer(
-  gameX: number,
-  gameY: number,
+function panelRectInContainer(
   canvasRect: DOMRect,
   containerRect: DOMRect,
-): { left: number; top: number } {
+  insets: AuthPanelInsets,
+): { left: number; top: number; width: number; height: number } {
+  const baseLeft = canvasRect.left - containerRect.left + (AUTH_PANEL.x / GAME_WIDTH) * canvasRect.width;
+  const baseTop = canvasRect.top - containerRect.top + (AUTH_PANEL.y / GAME_HEIGHT) * canvasRect.height;
+  const baseWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
+  const baseHeight = (AUTH_PANEL.height / GAME_HEIGHT) * canvasRect.height;
+
   return {
-    left: canvasRect.left - containerRect.left + (gameX / GAME_WIDTH) * canvasRect.width,
-    top: canvasRect.top - containerRect.top + (gameY / GAME_HEIGHT) * canvasRect.height,
+    left: baseLeft + baseWidth * insets.left,
+    top: baseTop + baseHeight * insets.top,
+    width: baseWidth * (1 - insets.left - insets.right),
+    height: baseHeight * (1 - insets.top - insets.bottom),
   };
 }
 
 function positionAuthUi(
-  shell: HTMLElement,
   overlay: HTMLElement,
   scene: Phaser.Scene,
   layout: AuthUILayout,
@@ -341,43 +297,22 @@ function positionAuthUi(
   if (!container || !canvas) return;
 
   const mobile = isMobileTouchDevice();
-  shell.classList.toggle('mimu-auth-overlay--mobile', mobile);
   overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
 
   const containerRect = container.getBoundingClientRect();
   const canvasRect = canvas.getBoundingClientRect();
+  const rect = panelRectInContainer(canvasRect, containerRect, layout.panelInsets);
 
-  const panelWidth = (AUTH_PANEL.width / GAME_WIDTH) * canvasRect.width;
-  const canvasScale = canvasRect.width / GAME_WIDTH;
-  const centerX = GAME_WIDTH / 2;
-  const formTop = gamePointToContainer(centerX, layout.formTopY, canvasRect, containerRect);
-  const panelBottom = gamePointToContainer(centerX, layout.panelBottomY, canvasRect, containerRect);
-  const maxHeight = Math.max(180, panelBottom.top - formTop.top);
-
-  const formWidth = panelWidth * (mobile ? 0.88 : 0.84);
-  const panelHeightGame = layout.panelBottomY - layout.formTopY;
-  const panelHeightPx =
-    (panelHeightGame / GAME_HEIGHT) * canvasRect.height;
-  const fillRatio = maxHeight / Math.max(1, panelHeightPx);
-
-  let uiScale = mobile ? 1 : Math.min(1.08, Math.max(0.88, canvasScale));
-  if (fillRatio < 0.95) {
-    uiScale *= Math.max(0.72, fillRatio);
-  }
-
-  overlay.classList.toggle('mimu-auth-overlay--compact', fillRatio < 0.88 || mobile);
-
-  shell.style.setProperty('--auth-ui-scale', String(uiScale));
-  overlay.style.left = `${formTop.left}px`;
-  overlay.style.top = `${formTop.top}px`;
-  overlay.style.width = `${formWidth}px`;
-  overlay.style.maxHeight = `${maxHeight}px`;
+  overlay.style.left = `${rect.left}px`;
+  overlay.style.top = `${rect.top}px`;
+  overlay.style.width = `${rect.width}px`;
+  overlay.style.height = `${Math.max(160, rect.height)}px`;
 }
 
 /** Remove auth HTML so it never blocks canvas clicks after leaving the account page. */
 export function destroyAuthFormOverlay(): void {
   document
-    .querySelectorAll(`.${SHELL_CLASS}, .${OVERLAY_CLASS}, .${FORM_CLASS}, #${LEGACY_FORM_ID}`)
+    .querySelectorAll(`.${SHELL_CLASS}, .${OVERLAY_CLASS}, .${SCROLL_CLASS}, .${FORM_CLASS}, #${LEGACY_FORM_ID}`)
     .forEach((node) => {
       node.remove();
     });
@@ -420,6 +355,13 @@ export function mountAuthForm(
 
   const overlay = document.createElement('div');
   overlay.className = OVERLAY_CLASS;
+
+  const scroll = document.createElement('div');
+  scroll.className = SCROLL_CLASS;
+
+  const title = document.createElement('h1');
+  title.className = 'mimu-auth-title';
+  title.textContent = 'ACCOUNT';
 
   const tabs = document.createElement('div');
   tabs.className = 'mimu-auth-tabs';
@@ -505,22 +447,24 @@ export function mountAuthForm(
   continueBtn.textContent = 'CONTINUE →';
   continueBtn.hidden = !options?.showContinue;
 
+  scroll.append(title, subtitle, tabs, root, continueBtn);
+
   const backBtn = document.createElement('button');
   backBtn.type = 'button';
   backBtn.className = 'mimu-auth-action mimu-auth-back';
   backBtn.textContent = '← BACK';
 
-  overlay.append(subtitle, tabs, root, continueBtn, backBtn);
+  overlay.append(scroll, backBtn);
   shell.append(overlay);
   container.appendChild(shell);
 
   const syncPosition = (): void => {
     if (shell.isConnected) {
-      positionAuthUi(shell, overlay, scene, layout);
+      positionAuthUi(overlay, scene, layout);
     }
   };
 
-  positionAuthUi(shell, overlay, scene, layout);
+  positionAuthUi(overlay, scene, layout);
   requestAnimationFrame(syncPosition);
   scene.scale.on('resize', syncPosition);
   window.addEventListener('resize', syncPosition);
@@ -543,13 +487,13 @@ export function mountAuthForm(
     const isRegister = mode === 'register';
     usernameWrap.style.display = isRegister ? 'flex' : 'none';
     usernameWrap.style.flexDirection = 'column';
-    usernameWrap.style.gap = '0.35rem';
+    usernameWrap.style.gap = '0.3rem';
     emailWrap.style.display = 'flex';
     emailWrap.style.flexDirection = 'column';
-    emailWrap.style.gap = '0.35rem';
+    emailWrap.style.gap = '0.3rem';
     passwordWrap.style.display = 'flex';
     passwordWrap.style.flexDirection = 'column';
-    passwordWrap.style.gap = '0.35rem';
+    passwordWrap.style.gap = '0.3rem';
     forgotBtn.hidden = isRegister || !options?.onForgotPassword;
     passwordInput.autocomplete = isRegister ? 'new-password' : 'current-password';
     submitBtn.textContent = submitLabel(mode);
