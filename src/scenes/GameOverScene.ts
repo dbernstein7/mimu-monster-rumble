@@ -46,6 +46,25 @@ const NAV_BUTTON_Y = {
   second: 560,
 } as const;
 
+function getGameOverContentLayout(hasBorder: boolean) {
+  const insets = hasBorder
+    ? { top: 0.18, bottom: 0.12 }
+    : { top: 0.08, bottom: 0.08 };
+
+  const innerTop = GAME_OVER_PANEL.y + GAME_OVER_PANEL.height * insets.top;
+  const innerBottom = GAME_OVER_PANEL.y + GAME_OVER_PANEL.height * (1 - insets.bottom);
+  const innerHeight = innerBottom - innerTop;
+
+  return {
+    titleY: innerTop + innerHeight * 0.12,
+    finalScoreY: innerTop + innerHeight * 0.28,
+    scoreY: innerTop + innerHeight * 0.42,
+    coinsY: innerTop + innerHeight * 0.58,
+    mimuY: innerTop + innerHeight * 0.72,
+    statusY: innerTop + innerHeight * 0.88,
+  };
+}
+
 function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): string {
   const second = getCharacter(mimu2).name;
   if (!mimu1 || mimu1 === mimu2) return second;
@@ -86,6 +105,7 @@ export default class GameOverScene extends Phaser.Scene {
     mountFullscreenButton(this);
 
     const hasBorder = hasLeaderboardBorderTexture(this);
+    const layout = getGameOverContentLayout(hasBorder);
     if (hasBorder) {
       addPanelBorder(this, GAME_OVER_PANEL);
     } else {
@@ -96,7 +116,7 @@ export default class GameOverScene extends Phaser.Scene {
     createHeadlineGlowTitle(
       this,
       GAME_WIDTH / 2,
-      won ? 175 : 165,
+      layout.titleY,
       won ? 'VICTORY!' : 'GAME OVER',
       won ? '48px' : '44px',
       won ? '#ffc857' : '#ff4757',
@@ -104,15 +124,17 @@ export default class GameOverScene extends Phaser.Scene {
     );
 
     this.add
-      .text(GAME_WIDTH / 2, 230, formatScore(score), {
+      .text(GAME_WIDTH / 2, layout.scoreY, formatScore(score), {
         ...valueStyle('40px', won ? '#ffc857' : '#f5f0ff'),
         fontFamily: UI_FONTS.title,
       })
       .setOrigin(0.5);
-    this.add.text(GAME_WIDTH / 2, 205, 'FINAL SCORE', subtitleStyle('12px')).setOrigin(0.5);
+    this.add
+      .text(GAME_WIDTH / 2, layout.finalScoreY, 'FINAL SCORE', subtitleStyle('12px'))
+      .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 275, `◎ ${formatScore(coins)} coins this run`, {
+      .text(GAME_WIDTH / 2, layout.coinsY, `◎ ${formatScore(coins)} coins this run`, {
         fontFamily: UI_FONTS.body,
         fontSize: '20px',
         color: '#ffd166',
@@ -121,11 +143,11 @@ export default class GameOverScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, 310, `${mimuLine}  ·  ${level.name}`, subtitleStyle('15px'))
+      .text(GAME_WIDTH / 2, layout.mimuY, `${mimuLine}  ·  ${level.name}`, subtitleStyle('15px'))
       .setOrigin(0.5);
 
     const statusText = this.add
-      .text(GAME_WIDTH / 2, 345, 'Saving run...', {
+      .text(GAME_WIDTH / 2, layout.statusY, 'Saving run...', {
         fontFamily: UI_FONTS.body,
         fontSize: '14px',
         color: '#5dffe0',
