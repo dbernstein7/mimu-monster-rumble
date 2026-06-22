@@ -54,44 +54,36 @@ function getCardLayout() {
   };
 }
 
-const LORE_LEFT_X = 52;
-const LORE_MAX_WIDTH = 400;
-const LORE_GAP_FROM_CARDS = 72;
+const LORE_LEFT_X = 22;
+const LORE_MAX_WIDTH = 228;
 
 function shouldShowCharacterSelectLore(): boolean {
   return !isMobileTouchDevice();
 }
 
-function getCardGridCenterX(cardWidth: number, columnGap: number, showLore: boolean): number {
-  if (!showLore) return GAME_WIDTH / 2;
-  const leftColumnCenter =
-    LORE_LEFT_X + LORE_MAX_WIDTH + LORE_GAP_FROM_CARDS + cardWidth / 2;
-  return leftColumnCenter + cardWidth / 2 + columnGap / 2;
-}
-
 function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
   const maxWidth = LORE_MAX_WIDTH;
   let y = startY;
-  const paragraphGap = 20;
+  const paragraphGap = 12;
   const bodyStyle = {
     fontFamily: UI_FONTS.body,
-    fontSize: '13px',
-    color: '#c9b8e8',
+    fontSize: '10px',
+    color: '#a89bc4',
     wordWrap: { width: maxWidth },
-    lineSpacing: 8,
+    lineSpacing: 4,
   } as const;
 
   const headline = scene.add
     .text(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
       fontFamily: UI_FONTS.headline,
-      fontSize: '18px',
+      fontSize: '13px',
       color: '#ffc857',
       fontStyle: 'bold',
       wordWrap: { width: maxWidth },
-      lineSpacing: 6,
+      lineSpacing: 4,
     })
     .setOrigin(0, 0)
-    .setDepth(2);
+    .setDepth(0);
   y += headline.height + paragraphGap;
 
   const bodyOne = scene.add
@@ -102,7 +94,7 @@ function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
       bodyStyle,
     )
     .setOrigin(0, 0)
-    .setDepth(2);
+    .setDepth(0);
   y += bodyOne.height + paragraphGap;
 
   const bodyTwo = scene.add
@@ -113,7 +105,7 @@ function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
       bodyStyle,
     )
     .setOrigin(0, 0)
-    .setDepth(2);
+    .setDepth(0);
   y += bodyTwo.height + paragraphGap;
 
   scene.add
@@ -124,7 +116,7 @@ function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
       bodyStyle,
     )
     .setOrigin(0, 0)
-    .setDepth(2);
+    .setDepth(0);
 }
 
 export default class CharacterSelectScene extends Phaser.Scene {
@@ -187,22 +179,21 @@ export default class CharacterSelectScene extends Phaser.Scene {
       cardLayout.maxWidth,
       cardLayout.maxHeight,
     );
-    const centerX = getCardGridCenterX(cardSize.width, cardLayout.columnGap, showLore);
-    const titleX = showLore ? centerX : GAME_WIDTH / 2;
+    const centerX = GAME_WIDTH / 2;
 
     createHeadlineGlowTitle(
       this,
-      titleX,
+      GAME_WIDTH / 2,
       isMobileTouchDevice() ? 42 : 50,
       titleText,
       this.continueRun ? '28px' : isMobileTouchDevice() ? '30px' : '36px',
     );
     this.add
-      .text(titleX, isMobileTouchDevice() ? 76 : 88, subtitleText, subtitleStyle('14px'))
+      .text(GAME_WIDTH / 2, isMobileTouchDevice() ? 76 : 88, subtitleText, subtitleStyle('14px'))
       .setOrigin(0.5);
 
     if (showLore) {
-      mountCharacterSelectLore(this, isMobileTouchDevice() ? 108 : 118);
+      mountCharacterSelectLore(this, 128);
     }
 
     const colX = [
