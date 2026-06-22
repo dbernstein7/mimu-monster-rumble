@@ -9,6 +9,46 @@ const BUTTON_SIZE = 40;
 const BUTTON_PAD = 14;
 const BUTTON_DEPTH = 245;
 const MODAL_DEPTH = 360;
+const TOOLTIP_OFFSET_X = 16;
+const TOOLTIP_OFFSET_Y = -10;
+
+function attachControlsHoverTooltip(
+  scene: Phaser.Scene,
+  button: Phaser.GameObjects.Container,
+): void {
+  if (isMobileTouchDevice()) return;
+
+  const hit = button.getAt(2) as Phaser.GameObjects.Arc | undefined;
+  if (!hit?.input) return;
+
+  const tooltip = scene.add
+    .text(0, 0, 'Controls', {
+      fontFamily: UI_FONTS.body,
+      fontSize: '13px',
+      color: '#ffc857',
+      fontStyle: 'bold',
+      backgroundColor: '#2e1a4a',
+      padding: { x: 8, y: 4 },
+    })
+    .setScrollFactor(0)
+    .setDepth(BUTTON_DEPTH + 5)
+    .setVisible(false);
+
+  const positionTooltip = (pointer: Phaser.Input.Pointer): void => {
+    tooltip.setPosition(pointer.x + TOOLTIP_OFFSET_X, pointer.y + TOOLTIP_OFFSET_Y);
+  };
+
+  hit.on('pointerover', (pointer: Phaser.Input.Pointer) => {
+    tooltip.setVisible(true);
+    positionTooltip(pointer);
+  });
+  hit.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+    if (tooltip.visible) positionTooltip(pointer);
+  });
+  hit.on('pointerout', () => tooltip.setVisible(false));
+
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => tooltip.destroy());
+}
 
 export interface ControlsButtonOptions {
   depth?: number;
@@ -128,6 +168,7 @@ export function mountControlsButton(
     BUTTON_SIZE,
   );
   button.setScrollFactor(0).setDepth(depth);
+  attachControlsHoverTooltip(scene, button);
 
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     closeControlsModal(scene);
