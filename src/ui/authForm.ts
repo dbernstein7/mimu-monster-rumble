@@ -43,11 +43,20 @@ export const AUTH_LAYOUT = {
 } as const;
 
 export function getAuthContentLayout(hasBorder: boolean) {
-  const topInner = AUTH_PANEL.y + (hasBorder ? 72 : 24);
+  if (!hasBorder) {
+    const topInner = AUTH_PANEL.y + 24;
+    return {
+      titleY: topInner,
+      formTopY: topInner + 42,
+      backY: AUTH_PANEL.y + AUTH_PANEL.height - 28,
+    };
+  }
+
+  const topInner = AUTH_PANEL.y + 108;
   return {
     titleY: topInner,
-    formTopY: topInner + 42,
-    backY: AUTH_PANEL.y + AUTH_PANEL.height - (hasBorder ? 52 : 28),
+    formTopY: topInner + 64,
+    backY: AUTH_PANEL.y + AUTH_PANEL.height - 86,
   };
 }
 
