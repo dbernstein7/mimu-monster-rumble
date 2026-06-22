@@ -38,16 +38,21 @@ export const LEADERBOARD_PANEL = {
 /** Scale border art so the frame wraps the panel edge (not shrunk inside it). */
 const LEADERBOARD_BORDER_WRAP = 1.06;
 
-/** Content offsets when the border frame is shown — clears the top ornament. */
+/** Content layout inside the leaderboard panel (title → tabs → table). */
 export function getLeaderboardContentLayout(hasBorder: boolean) {
-  const yShift = hasBorder ? 42 : 0;
   const xPad = hasBorder ? 10 : 0;
-  const panelBottom = LEADERBOARD_PANEL.y + LEADERBOARD_PANEL.height;
-  const bottomPad = hasBorder ? 52 : 30;
+  const topInner = LEADERBOARD_PANEL.y + (hasBorder ? 72 : 24);
+  const titleY = topInner;
+  const subtitleY = topInner + 22;
+  const tabY = topInner + 66;
+  const headerY = tabY + 38;
+  const rowStartY = headerY + 40;
   return {
-    tabY: 118 + yShift,
-    headerY: 156 + yShift,
-    rowStartY: 196 + yShift,
+    titleY,
+    subtitleY,
+    tabY,
+    headerY,
+    rowStartY,
     rowHeight: 34,
     colHash: 110 + xPad,
     colPlayer: 150 + xPad,
@@ -55,8 +60,6 @@ export function getLeaderboardContentLayout(hasBorder: boolean) {
     colScore: 900,
     rowRectX: 100 + xPad,
     rowRectW: GAME_WIDTH - 200 - xPad * 2,
-    titleY: panelBottom - bottomPad - 22,
-    subtitleY: panelBottom - bottomPad,
   };
 }
 
