@@ -128,11 +128,11 @@ export default class MainMenuScene extends Phaser.Scene {
     this.menuUi = this.add.container(0, 0).setDepth(10);
 
     const mobile = isMobileTouchDevice();
-    const titleCenterY = mobile ? 84 : 128;
-    let contentBottomY = mobile ? 158 : 195;
+    const titleCenterY = mobile ? 96 : 128;
+    let contentBottomY = mobile ? 168 : 195;
 
     if (hasTitleTexture(this)) {
-      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY, mobile ? 420 : undefined);
+      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY, mobile ? 400 : undefined);
       if (title) {
         title.setDepth(0);
         this.menuUi.add(title);
