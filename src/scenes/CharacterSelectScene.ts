@@ -55,68 +55,90 @@ function getCardLayout() {
 }
 
 const LORE_LEFT_X = 22;
-const LORE_MAX_WIDTH = 228;
+const LORE_CARD_GAP = 36;
 
 function shouldShowCharacterSelectLore(): boolean {
   return !isMobileTouchDevice();
 }
 
-function mountCharacterSelectLore(scene: Phaser.Scene, startY: number): void {
-  const maxWidth = LORE_MAX_WIDTH;
-  let y = startY;
-  const paragraphGap = 12;
-  const bodyStyle = {
-    fontFamily: UI_FONTS.body,
-    fontSize: '10px',
-    color: '#a89bc4',
-    wordWrap: { width: maxWidth },
-    lineSpacing: 4,
-  } as const;
+function getLoreColumnWidth(cardWidth: number, columnGap: number): number {
+  const centerX = GAME_WIDTH / 2;
+  const leftColumnCenter = centerX - cardWidth / 2 - columnGap / 2;
+  const leftCardEdge = leftColumnCenter - cardWidth / 2;
+  const available = Math.floor(leftCardEdge - LORE_LEFT_X - LORE_CARD_GAP);
+  return Phaser.Math.Clamp(available, 118, 168);
+}
 
-  const headline = scene.add
-    .text(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
-      fontFamily: UI_FONTS.headline,
-      fontSize: '13px',
-      color: '#ffc857',
-      fontStyle: 'bold',
-      wordWrap: { width: maxWidth },
-      lineSpacing: 4,
-    })
-    .setOrigin(0, 0)
-    .setDepth(0);
+function mountCharacterSelectLore(
+  scene: Phaser.Scene,
+  startY: number,
+  cardWidth: number,
+  columnGap: number,
+): void {
+  const centerX = GAME_WIDTH / 2;
+  const leftColumnCenter = centerX - cardWidth / 2 - columnGap / 2;
+  const clipRight = Math.floor(leftColumnCenter - cardWidth / 2 - LORE_CARD_GAP);
+  const maxWidth = getLoreColumnWidth(cardWidth, columnGap);
+
+  const maskShape = scene.add.graphics().setVisible(false);
+  maskShape.fillStyle(0xffffff, 1);
+  maskShape.fillRect(LORE_LEFT_X, 0, Math.max(1, clipRight - LORE_LEFT_X), GAME_HEIGHT);
+  const loreMask = maskShape.createGeometryMask();
+
+  const addLoreText = (
+    x: number,
+    y: number,
+    content: string,
+    style: Phaser.Types.GameObjects.Text.TextStyle,
+  ): Phaser.GameObjects.Text => {
+    const text = scene.add.text(x, y, content, style).setOrigin(0, 0).setDepth(0);
+    text.setWordWrapWidth(maxWidth, true);
+    text.setMask(loreMask);
+    return text;
+  };
+
+  let y = startY;
+  const paragraphGap = 10;
+  const bodyStyle: Phaser.Types.GameObjects.Text.TextStyle = {
+    fontFamily: UI_FONTS.body,
+    fontSize: '9px',
+    color: '#a89bc4',
+    wordWrap: { width: maxWidth, useAdvancedWrap: true },
+    lineSpacing: 3,
+  };
+
+  const headline = addLoreText(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
+    fontFamily: UI_FONTS.headline,
+    fontSize: '12px',
+    color: '#ffc857',
+    fontStyle: 'bold',
+    wordWrap: { width: maxWidth, useAdvancedWrap: true },
+    lineSpacing: 3,
+  });
   y += headline.height + paragraphGap;
 
-  const bodyOne = scene.add
-    .text(
-      LORE_LEFT_X,
-      y,
-      'A mysterious corruption is spreading across the world of Mimu, twisting innocent creatures into terrifying monsters.',
-      bodyStyle,
-    )
-    .setOrigin(0, 0)
-    .setDepth(0);
+  const bodyOne = addLoreText(
+    LORE_LEFT_X,
+    y,
+    'A mysterious corruption is spreading across the world of Mimu, twisting innocent creatures into terrifying monsters.',
+    bodyStyle,
+  );
   y += bodyOne.height + paragraphGap;
 
-  const bodyTwo = scene.add
-    .text(
-      LORE_LEFT_X,
-      y,
-      'As one of the four legendary Guardians—master of Fire, Frost, Nature, or Void—you are the last hope against the growing darkness.',
-      bodyStyle,
-    )
-    .setOrigin(0, 0)
-    .setDepth(0);
+  const bodyTwo = addLoreText(
+    LORE_LEFT_X,
+    y,
+    'As one of the four legendary Guardians—master of Fire, Frost, Nature, or Void—you are the last hope against the growing darkness.',
+    bodyStyle,
+  );
   y += bodyTwo.height + paragraphGap;
 
-  scene.add
-    .text(
-      LORE_LEFT_X,
-      y,
-      'Battle endless waves of corrupted enemies, unlock powerful abilities, recover the lost Guardian Fragments, and destroy the Chaos Core before Mimu is consumed by Chaos forever.',
-      bodyStyle,
-    )
-    .setOrigin(0, 0)
-    .setDepth(0);
+  addLoreText(
+    LORE_LEFT_X,
+    y,
+    'Battle endless waves of corrupted enemies, unlock powerful abilities, recover the lost Guardian Fragments, and destroy the Chaos Core before Mimu is consumed by Chaos forever.',
+    bodyStyle,
+  );
 }
 
 export default class CharacterSelectScene extends Phaser.Scene {
@@ -193,7 +215,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
       .setOrigin(0.5);
 
     if (showLore) {
-      mountCharacterSelectLore(this, 128);
+      mountCharacterSelectLore(this, 128, cardSize.width, cardLayout.columnGap);
     }
 
     const colX = [
