@@ -126,7 +126,7 @@ export default class GameOverScene extends Phaser.Scene {
 
     this.drawNavButtonArt(won);
 
-    mountGameOverNav({
+    mountGameOverNav(this, {
       won,
       onMainMenu: () => this.goToMainMenu(),
       onLeaderboard: () => this.goToLeaderboard(),

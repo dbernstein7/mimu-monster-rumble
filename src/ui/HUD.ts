@@ -18,6 +18,7 @@ import {
   createIconButton,
 } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
+import { getMobileGameUiInsets } from '../utils/mobileLayout';
 
 const HUD_TEXT_STROKE = { stroke: '#0d0618', strokeThickness: 4 };
 
@@ -25,6 +26,7 @@ export class HUD {
   scene: Phaser.Scene;
   container: Phaser.GameObjects.Container;
   private readonly hideMobilePowerHud = isMobileTouchDevice();
+  private mobileUiInset: ReturnType<typeof getMobileGameUiInsets> | null = null;
   progressGfx!: Phaser.GameObjects.Graphics;
   abilityGfx!: Phaser.GameObjects.Graphics;
   secondaryGfx!: Phaser.GameObjects.Graphics;
@@ -47,6 +49,9 @@ export class HUD {
 
   constructor(scene: Phaser.Scene, onPause: () => void) {
     this.scene = scene;
+    if (isMobileTouchDevice()) {
+      this.mobileUiInset = getMobileGameUiInsets(scene);
+    }
     this.container = scene.add.container(0, 0).setScrollFactor(0).setDepth(100);
 
     this.progressGfx = scene.add.graphics();
@@ -151,6 +156,24 @@ export class HUD {
       .setOrigin(0.5);
 
     this.pauseBtn = createIconButton(scene, GAME_WIDTH - 44, 46, 'II', onPause, 40);
+
+    if (isMobileTouchDevice()) {
+      const inset = this.mobileUiInset ?? getMobileGameUiInsets(scene);
+      this.pauseBtn.setPosition(GAME_WIDTH - inset.right - 20, inset.top + 22);
+      this.scoreLabel.setPosition(inset.left + 16, inset.top + 8);
+      this.scoreValue.setPosition(inset.left + 16, inset.top + 24);
+      this.coinValue.setPosition(inset.left + 148, inset.top + 24);
+      this.waveBadge.setY(inset.top + 14);
+      this.timerText.setY(inset.top + 40);
+      this.progressLabel.setY(GAME_HEIGHT - inset.bottom - 36);
+      const lifeIconY = inset.top + 22;
+      const lifeIconSpacing = 28;
+      const maxHp = 3;
+      for (let i = 0; i < this.lifeIcons.length; i++) {
+        const x = GAME_WIDTH - inset.right - 36 - (maxHp - 1 - i) * lifeIconSpacing;
+        this.lifeIcons[i].setPosition(x, lifeIconY);
+      }
+    }
 
     if (hasPowerUpTexture(scene, 'health')) {
       const lifeIconScale = 0.088;
@@ -343,7 +366,8 @@ export class HUD {
     const barW = 340;
     const barH = 8;
     const barX = GAME_WIDTH / 2 - barW / 2;
-    const barY = GAME_HEIGHT - 22;
+    const inset = this.mobileUiInset;
+    const barY = inset ? GAME_HEIGHT - inset.bottom - 14 : GAME_HEIGHT - 22;
     drawProgressBar(this.progressGfx, barX, barY, barW, barH, progress, UI_COLORS.orange);
     this.progressLabel.setText(`${levelName}  ·  ${Math.round(progress * 100)}%`);
   }

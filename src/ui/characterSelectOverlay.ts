@@ -1,6 +1,17 @@
+import Phaser from 'phaser';
+import { GAME_HEIGHT } from '../config/gameConstants';
+import {
+  bindSceneOverlayPosition,
+  getCanvasScreenRect,
+  positionHtmlAtGamePoint,
+} from '../utils/mobileLayout';
+
 const STYLE_ID = 'mimu-char-select-overlay-styles';
 const SHELL_CLASS = 'mimu-char-select-shell';
 const BTN_CLASS = 'mimu-char-select-back';
+
+const BACK_GAME_X = 640;
+const BACK_GAME_Y = GAME_HEIGHT - 36;
 
 function ensureStyles(): void {
   if (document.getElementById(STYLE_ID)) return;
@@ -8,28 +19,27 @@ function ensureStyles(): void {
   style.id = STYLE_ID;
   style.textContent = `
     .${SHELL_CLASS} {
-      position: absolute;
+      position: fixed;
       inset: 0;
       pointer-events: none;
-      z-index: 30;
+      z-index: 10000;
     }
     .${BTN_CLASS} {
-      position: absolute;
-      left: 50%;
-      bottom: 2.5%;
-      transform: translateX(-50%);
+      position: fixed;
       pointer-events: auto;
       border: 2px solid rgba(168, 155, 196, 0.45);
       border-radius: 12px;
       padding: 0.72rem 1.75rem;
+      min-height: 44px;
       font-family: 'Exo 2', system-ui, sans-serif;
-      font-size: 18px;
+      font-size: 16px;
       font-weight: 700;
       color: #ffffff;
       background: rgba(46, 26, 74, 0.94);
       cursor: pointer;
       box-sizing: border-box;
       -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
     }
     .${BTN_CLASS}:hover {
       border-color: #ffc857;
@@ -46,13 +56,13 @@ export function destroyCharacterSelectOverlay(): void {
   });
 }
 
-/** HTML back button — reliable on Vercel/mobile where canvas hits can fail. */
-export function mountCharacterSelectBackButton(onBack: () => void): void {
+/** HTML back button aligned to canvas coordinates (not letterboxed container %). */
+export function mountCharacterSelectBackButton(
+  scene: Phaser.Scene,
+  onBack: () => void,
+): void {
   destroyCharacterSelectOverlay();
   ensureStyles();
-
-  const container = document.getElementById('game-container');
-  if (!container) return;
 
   const shell = document.createElement('div');
   shell.className = SHELL_CLASS;
@@ -72,5 +82,18 @@ export function mountCharacterSelectBackButton(onBack: () => void): void {
   btn.addEventListener('touchend', handleBack, { passive: false });
 
   shell.append(btn);
-  container.appendChild(shell);
+  document.body.appendChild(shell);
+
+  const syncPosition = (): void => {
+    if (!shell.isConnected) return;
+    const screen = getCanvasScreenRect(scene);
+    if (!screen) return;
+    positionHtmlAtGamePoint(btn, BACK_GAME_X, BACK_GAME_Y, screen, 'bottom-center');
+  };
+
+  const unbind = bindSceneOverlayPosition(scene, syncPosition);
+  scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+    unbind();
+    destroyCharacterSelectOverlay();
+  });
 }

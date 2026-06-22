@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
+import { isMobileTouchDevice } from '../utils/device';
 
 const uiModules = import.meta.glob('../../Assets/UI/*.png', {
   eager: true,
@@ -40,24 +41,28 @@ const LEADERBOARD_BORDER_WRAP = 1.06;
 
 /** Content layout inside the leaderboard panel (title → tabs → table). */
 export function getLeaderboardContentLayout(hasBorder: boolean) {
+  const mobile = isMobileTouchDevice();
+
   const xPad = hasBorder ? 10 : 0;
-  const topInner = LEADERBOARD_PANEL.y + (hasBorder ? 72 : 24);
+  const topInner = LEADERBOARD_PANEL.y + (hasBorder ? (mobile ? 64 : 72) : 24);
   const titleY = topInner;
-  const subtitleY = topInner + 22;
-  const tabY = topInner + 66;
-  const headerY = tabY + 38;
-  const rowStartY = headerY + 40;
+  const subtitleY = topInner + (mobile ? 18 : 22);
+  const tabY = topInner + (mobile ? 54 : 66);
+  const headerY = tabY + (mobile ? 32 : 38);
+  const rowStartY = headerY + (mobile ? 32 : 40);
   return {
     titleY,
     subtitleY,
     tabY,
     headerY,
     rowStartY,
-    rowHeight: 34,
+    rowHeight: mobile ? 30 : 34,
+    maxRows: mobile ? 8 : 12,
+    backY: mobile ? GAME_HEIGHT - 40 : GAME_HEIGHT - 48,
     colHash: 110 + xPad,
     colPlayer: 150 + xPad,
-    colMimus: 520,
-    colScore: 900,
+    colMimus: mobile ? 480 : 520,
+    colScore: mobile ? 880 : 900,
     rowRectX: 100 + xPad,
     rowRectW: GAME_WIDTH - 200 - xPad * 2,
   };
@@ -160,12 +165,17 @@ export function addMenuBackground(scene: Phaser.Scene, depth = -10): Phaser.Game
   return bg;
 }
 
-export function addMenuTitle(scene: Phaser.Scene, x: number, y: number): Phaser.GameObjects.Image | null {
+export function addMenuTitle(
+  scene: Phaser.Scene,
+  x: number,
+  y: number,
+  displayWidth = TITLE_DISPLAY_WIDTH,
+): Phaser.GameObjects.Image | null {
   if (!hasTitleTexture(scene)) return null;
 
   const title = scene.add.image(x, y, TITLE_TEXTURE_KEY).setOrigin(0.5).setDepth(1);
-  const displayHeight = (TITLE_DISPLAY_WIDTH / title.width) * title.height;
-  title.setDisplaySize(TITLE_DISPLAY_WIDTH, displayHeight);
+  const displayHeight = (displayWidth / title.width) * title.height;
+  title.setDisplaySize(displayWidth, displayHeight);
   return title;
 }
 

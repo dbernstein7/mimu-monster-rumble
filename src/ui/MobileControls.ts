@@ -9,6 +9,7 @@ import type { CharacterId } from '../types/game';
 import type { Player } from '../entities/Player';
 import { UI_COLORS } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
+import { getMobileGameUiInsets } from '../utils/mobileLayout';
 import { unlockMobileAudio } from '../utils/audioUnlock';
 
 const EDGE = 22;
@@ -20,24 +21,60 @@ const BTN_GAP = 14;
 const ICON_PX = 72;
 const BTN_HIT_PAD = 10;
 
-const ABILITY_BTN = {
-  x: GAME_WIDTH - EDGE - ABILITY_RADIUS,
-  y: GAME_HEIGHT - EDGE - ABILITY_RADIUS,
-  radius: ABILITY_RADIUS,
-};
-const SECONDARY_BTN = {
-  x: ABILITY_BTN.x - ABILITY_RADIUS - BTN_GAP - SECONDARY_RADIUS,
-  y: ABILITY_BTN.y,
-  radius: SECONDARY_RADIUS,
-};
+function mobileControlPositions(scene: Phaser.Scene): {
+  ability: { x: number; y: number; radius: number };
+  secondary: { x: number; y: number; radius: number };
+} {
+  const inset = getMobileGameUiInsets(scene);
+  const ability = {
+    x: GAME_WIDTH - inset.right - ABILITY_RADIUS,
+    y: GAME_HEIGHT - inset.bottom - ABILITY_RADIUS,
+    radius: ABILITY_RADIUS,
+  };
+  const secondary = {
+    x: ability.x - ABILITY_RADIUS - BTN_GAP - SECONDARY_RADIUS,
+    y: ability.y,
+    radius: SECONDARY_RADIUS,
+  };
+  return { ability, secondary };
+}
+
+function desktopControlPositions(): {
+  ability: { x: number; y: number; radius: number };
+  secondary: { x: number; y: number; radius: number };
+} {
+  const ability = {
+    x: GAME_WIDTH - EDGE - ABILITY_RADIUS,
+    y: GAME_HEIGHT - EDGE - ABILITY_RADIUS,
+    radius: ABILITY_RADIUS,
+  };
+  const secondary = {
+    x: ability.x - ABILITY_RADIUS - BTN_GAP - SECONDARY_RADIUS,
+    y: ability.y,
+    radius: SECONDARY_RADIUS,
+  };
+  return { ability, secondary };
+}
+
+function getControlPositions(scene: Phaser.Scene): {
+  ability: { x: number; y: number; radius: number };
+  secondary: { x: number; y: number; radius: number };
+} {
+  return isMobileTouchDevice() ? mobileControlPositions(scene) : desktopControlPositions();
+}
 
 function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
 }
 
-function isOnPowerButton(x: number, y: number): boolean {
-  if (dist(x, y, ABILITY_BTN.x, ABILITY_BTN.y) <= ABILITY_BTN.radius + BTN_HIT_PAD) return true;
-  return dist(x, y, SECONDARY_BTN.x, SECONDARY_BTN.y) <= SECONDARY_BTN.radius + BTN_HIT_PAD;
+function isOnPowerButton(
+  x: number,
+  y: number,
+  ability: { x: number; y: number; radius: number },
+  secondary: { x: number; y: number; radius: number },
+): boolean {
+  if (dist(x, y, ability.x, ability.y) <= ability.radius + BTN_HIT_PAD) return true;
+  return dist(x, y, secondary.x, secondary.y) <= secondary.radius + BTN_HIT_PAD;
 }
 
 interface PowerButton {
@@ -56,6 +93,7 @@ export class MobileControls {
   private container: Phaser.GameObjects.Container;
   private abilityBtn?: PowerButton;
   private secondaryBtn?: PowerButton;
+  private controlPos: ReturnType<typeof getControlPositions> = desktopControlPositions();
   private enabled = true;
   private joystickPointerId: number | null = null;
   private joystickOriginX = 0;
@@ -80,17 +118,19 @@ export class MobileControls {
     const primaryKey = getPrimaryAbilityTextureKey(scene, characterId);
     const secondaryKey = getSecondaryAbilityTextureKey(scene, characterId);
 
+    this.controlPos = getControlPositions(scene);
+
     this.abilityBtn = this.createPowerButton(
-      ABILITY_BTN.x,
-      ABILITY_BTN.y,
-      ABILITY_BTN.radius,
+      this.controlPos.ability.x,
+      this.controlPos.ability.y,
+      this.controlPos.ability.radius,
       primaryKey,
       UI_COLORS.orange,
     );
     this.secondaryBtn = this.createPowerButton(
-      SECONDARY_BTN.x,
-      SECONDARY_BTN.y,
-      SECONDARY_BTN.radius,
+      this.controlPos.secondary.x,
+      this.controlPos.secondary.y,
+      this.controlPos.secondary.radius,
       secondaryKey,
       UI_COLORS.cyan,
     );
@@ -122,7 +162,7 @@ export class MobileControls {
       if (!this.enabled || !pointer.isDown) return;
       unlockMobileAudio(this.scene.game);
       if (this.joystickPointerId !== null) return;
-      if (isOnPowerButton(pointer.x, pointer.y)) return;
+      if (isOnPowerButton(pointer.x, pointer.y, this.controlPos.ability, this.controlPos.secondary)) return;
 
       this.joystickPointerId = pointer.id;
       this.joystickOriginX = pointer.x;

@@ -10,6 +10,7 @@ import {
   UI_FONTS,
 } from '../ui/theme';
 import type { CharacterId } from '../types/game';
+import { isMobileTouchDevice } from '../utils/device';
 import { unlockMobileAudio } from '../utils/audioUnlock';
 import {
   destroyCharacterSelectOverlay,
@@ -40,6 +41,17 @@ const CARD_LAYOUT = {
   columnGap: 18,
   hitPadding: 12,
 };
+
+function getCardLayout() {
+  if (!isMobileTouchDevice()) return CARD_LAYOUT;
+  return {
+    rowY: [208, 448] as const,
+    maxWidth: 540,
+    maxHeight: 220,
+    columnGap: 14,
+    hitPadding: 12,
+  };
+}
 
 export default class CharacterSelectScene extends Phaser.Scene {
   private selectedIndex = 0;
@@ -85,42 +97,47 @@ export default class CharacterSelectScene extends Phaser.Scene {
     const titleText = this.continueRun ? `LEVEL ${this.targetLevelIndex + 1} — CHOOSE YOUR HERO` : 'CHOOSE YOUR MIMU';
     const subtitleText = this.continueRun
       ? `Pick a fighter for ${level.name}  ·  Score & coins carry over`
-      : 'D-Pad to browse  ·  A to confirm';
+      : isMobileTouchDevice()
+        ? 'Tap a card to select  ·  Use BACK to return'
+        : 'D-Pad to browse  ·  A to confirm';
 
-    createHeadlineGlowTitle(this, GAME_WIDTH / 2, 50, titleText, this.continueRun ? '28px' : '36px');
-    this.add.text(GAME_WIDTH / 2, 88, subtitleText, subtitleStyle('14px')).setOrigin(0.5);
+    createHeadlineGlowTitle(this, GAME_WIDTH / 2, isMobileTouchDevice() ? 42 : 50, titleText, this.continueRun ? '28px' : isMobileTouchDevice() ? '30px' : '36px');
+    this.add
+      .text(GAME_WIDTH / 2, isMobileTouchDevice() ? 76 : 88, subtitleText, subtitleStyle('14px'))
+      .setOrigin(0.5);
 
+    const cardLayout = getCardLayout();
     const sampleFrame = hasCharacterSelectCard(this, 'voidWarrior')
       ? this.textures.get(getCharacterSelectCardKey('voidWarrior')).get()
-      : { width: CARD_LAYOUT.maxWidth, height: CARD_LAYOUT.maxHeight };
+      : { width: cardLayout.maxWidth, height: cardLayout.maxHeight };
     const cardSize = getCharacterSelectCardDisplaySize(
       sampleFrame.width,
       sampleFrame.height,
-      CARD_LAYOUT.maxWidth,
-      CARD_LAYOUT.maxHeight,
+      cardLayout.maxWidth,
+      cardLayout.maxHeight,
     );
     const centerX = GAME_WIDTH / 2;
     const colX = [
-      centerX - cardSize.width / 2 - CARD_LAYOUT.columnGap / 2,
-      centerX + cardSize.width / 2 + CARD_LAYOUT.columnGap / 2,
+      centerX - cardSize.width / 2 - cardLayout.columnGap / 2,
+      centerX + cardSize.width / 2 + cardLayout.columnGap / 2,
     ] as const;
 
     CHARACTERS.forEach((c, i) => {
       const charId = c.id as CharacterId;
       const x = colX[i % 2];
-      const y = CARD_LAYOUT.rowY[Math.floor(i / 2)];
+      const y = cardLayout.rowY[Math.floor(i / 2)];
 
       const selection = this.add.graphics().setDepth(3);
       this.selectionGfx.push(selection);
 
       if (hasCharacterSelectCard(this, charId)) {
         const card = this.add.image(x, y, getCharacterSelectCardKey(charId)).setDepth(1);
-        fitCharacterSelectCard(card, CARD_LAYOUT.maxWidth, CARD_LAYOUT.maxHeight);
+        fitCharacterSelectCard(card, cardLayout.maxWidth, cardLayout.maxHeight);
         applyRoundedCardMask(this, card);
         this.cardImages.push(card);
 
-        const hitW = card.displayWidth + CARD_LAYOUT.hitPadding;
-        const hitH = card.displayHeight + CARD_LAYOUT.hitPadding;
+        const hitW = card.displayWidth + cardLayout.hitPadding;
+        const hitH = card.displayHeight + cardLayout.hitPadding;
         const hit = this.add
           .rectangle(x, y, hitW, hitH, 0x000000, 0.001)
           .setDepth(20)
@@ -132,13 +149,13 @@ export default class CharacterSelectScene extends Phaser.Scene {
         hit.on('pointerdown', () => this.startWithCharacter(charId));
       } else {
         const placeholder = this.add
-          .rectangle(x, y, CARD_LAYOUT.maxWidth, CARD_LAYOUT.maxHeight, c.color, 0.35)
+          .rectangle(x, y, cardLayout.maxWidth, cardLayout.maxHeight, c.color, 0.35)
           .setDepth(1);
         applyRoundedCardMask(this, placeholder);
         this.cardImages.push(placeholder);
 
         const hit = this.add
-          .rectangle(x, y, CARD_LAYOUT.maxWidth + CARD_LAYOUT.hitPadding, CARD_LAYOUT.maxHeight + CARD_LAYOUT.hitPadding, 0x000000, 0.001)
+          .rectangle(x, y, cardLayout.maxWidth + cardLayout.hitPadding, cardLayout.maxHeight + cardLayout.hitPadding, 0x000000, 0.001)
           .setDepth(20)
           .setInteractive({ useHandCursor: true })
           .on('pointerover', () => {
@@ -159,7 +176,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
       }
     });
 
-    mountCharacterSelectBackButton(() => this.goBackToMainMenu());
+    mountCharacterSelectBackButton(this, () => this.goBackToMainMenu());
 
     this.refreshHighlight();
 

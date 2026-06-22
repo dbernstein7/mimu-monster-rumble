@@ -75,6 +75,7 @@ void loadHeadlineFont().then(() => {
   if (isMobileTouchDevice()) {
     game.sound.pauseOnBlur = false;
     bindGameAudioUnlock(game);
+    document.documentElement.classList.add('mimu-mobile');
   }
   const gameContainer = document.getElementById('game-container');
 

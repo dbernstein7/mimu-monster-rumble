@@ -1,13 +1,9 @@
 import Phaser from 'phaser';
 import type { Game as PhaserGame } from 'phaser';
 
-const MOBILE_VIEWPORT_IDS = ['game-container', 'boot-loader', 'rotate-prompt'] as const;
-const VIEWPORT_SETTLE_MS = 200;
-const VIEWPORT_SIZE_THRESHOLD = 48;
-
 let viewportGame: PhaserGame | undefined;
-let lockedLandscape: { width: number; height: number } | null = null;
 let viewportChangeTimer = 0;
+let mobileShellApplied = false;
 
 export function isAuthInputFocused(): boolean {
   const active = document.activeElement;
@@ -33,112 +29,40 @@ export function isMobileTouchDevice(): boolean {
   return coarse && narrow && touchPoints;
 }
 
+/** Use layout width/height — more reliable than orientation media queries alone. */
 export function isPortraitMobile(): boolean {
   if (typeof window === 'undefined') return false;
-  return isMobileTouchDevice() && window.matchMedia('(orientation: portrait)').matches;
+  if (!isMobileTouchDevice()) return false;
+  return window.innerWidth < window.innerHeight;
 }
 
-function measureLandscapeViewport(): { width: number; height: number } {
-  const vv = window.visualViewport;
-  return {
-    width: Math.round(window.innerWidth),
-    height: Math.round(Math.max(window.innerHeight, vv?.height ?? 0)),
-  };
+function applyMobileShellClass(): void {
+  if (typeof document === 'undefined' || !isMobileTouchDevice() || mobileShellApplied) return;
+  document.documentElement.classList.add('mimu-mobile');
+  mobileShellApplied = true;
 }
 
-function captureLandscapeLock(): void {
-  if (isPortraitMobile()) {
-    lockedLandscape = null;
-    return;
-  }
-  lockedLandscape = measureLandscapeViewport();
-}
-
-function layoutMobileElements(top: number, left: number, width: number, height: number): void {
-  for (const id of MOBILE_VIEWPORT_IDS) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.style.position = 'fixed';
-    el.style.top = `${top}px`;
-    el.style.left = `${left}px`;
-    el.style.width = `${width}px`;
-    el.style.height = `${height}px`;
-    el.style.right = 'auto';
-    el.style.bottom = 'auto';
-  }
-  window.scrollTo(0, 0);
-}
-
-function clearMobileInlineLayout(): void {
-  for (const id of MOBILE_VIEWPORT_IDS) {
-    const el = document.getElementById(id);
-    if (!el) continue;
-    el.style.top = '';
-    el.style.left = '';
-    el.style.width = '';
-    el.style.height = '';
-  }
-}
-
-function shouldRelockViewport(next: { width: number; height: number }): boolean {
-  const prev = lockedLandscape;
-  if (!prev) return true;
-
-  const orientationSwap =
-    Math.abs(prev.width - next.height) < 80 && Math.abs(prev.height - next.width) < 80;
-
-  return (
-    orientationSwap ||
-    Math.abs(prev.width - next.width) > VIEWPORT_SIZE_THRESHOLD ||
-    Math.abs(prev.height - next.height) > VIEWPORT_SIZE_THRESHOLD
-  );
-}
-
-/** Keep one stable landscape size; ignore Safari chrome / visualViewport jitter during play. */
+/** Mobile shell only — canvas sizing is CSS + Phaser FIT (no inline dimension fighting). */
 export function syncMobileViewport(): void {
   if (typeof document === 'undefined' || typeof window === 'undefined') return;
   if (!isMobileTouchDevice()) return;
-
-  if (isPortraitMobile()) {
-    lockedLandscape = null;
-    clearMobileInlineLayout();
-    return;
-  }
-
-  if (!lockedLandscape) {
-    captureLandscapeLock();
-  }
-
-  if (!lockedLandscape) return;
-
-  layoutMobileElements(0, 0, lockedLandscape.width, lockedLandscape.height);
+  applyMobileShellClass();
+  syncMobileOrientationUi();
 }
 
-function applyViewportChange(): void {
-  syncMobileOrientationUi();
-
-  if (isPortraitMobile()) {
-    lockedLandscape = null;
-    clearMobileInlineLayout();
-    return;
-  }
-
-  const next = measureLandscapeViewport();
-  if (!shouldRelockViewport(next)) {
-    return;
-  }
-
-  lockedLandscape = next;
-  syncMobileViewport();
-
-  if (!isAuthInputFocused()) {
-    viewportGame?.scale.refresh();
-  }
+export function refreshMobileGameScale(): void {
+  if (!viewportGame || isAuthInputFocused()) return;
+  viewportGame.scale.refresh();
 }
 
 function onMobileViewportChange(): void {
   window.clearTimeout(viewportChangeTimer);
-  viewportChangeTimer = window.setTimeout(applyViewportChange, VIEWPORT_SETTLE_MS);
+  viewportChangeTimer = window.setTimeout(() => {
+    syncMobileOrientationUi();
+    if (!isPortraitMobile()) {
+      refreshMobileGameScale();
+    }
+  }, 250);
 }
 
 export function bindMobileViewport(game?: PhaserGame): void {
@@ -146,16 +70,19 @@ export function bindMobileViewport(game?: PhaserGame): void {
 
   if (game) viewportGame = game;
 
-  captureLandscapeLock();
+  applyMobileShellClass();
   syncMobileViewport();
 
   if ((window as Window & { __mimuViewportBound?: boolean }).__mimuViewportBound) return;
   (window as Window & { __mimuViewportBound?: boolean }).__mimuViewportBound = true;
 
-  // Do not listen to visualViewport scroll/resize — iOS Safari fires those when the
-  // address bar shows/hides and causes the canvas to jump during gameplay.
   window.addEventListener('orientationchange', onMobileViewportChange);
   window.addEventListener('resize', onMobileViewportChange);
+
+  window.setTimeout(() => {
+    syncMobileOrientationUi();
+    refreshMobileGameScale();
+  }, 400);
 }
 
 export function syncMobileOrientationUi(): void {

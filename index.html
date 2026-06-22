@@ -76,6 +76,30 @@
         font-size: 0.85rem;
         opacity: 0.85;
       }
+      html.mimu-mobile,
+      html.mimu-mobile body {
+        width: 100%;
+        height: 100%;
+        height: 100svh;
+      }
+      html.mimu-mobile #game-container,
+      html.mimu-mobile #boot-loader,
+      html.mimu-mobile #rotate-prompt {
+        position: fixed;
+        top: env(safe-area-inset-top, 0px);
+        right: env(safe-area-inset-right, 0px);
+        bottom: env(safe-area-inset-bottom, 0px);
+        left: env(safe-area-inset-left, 0px);
+        width: auto;
+        height: auto;
+      }
+      html.mimu-mobile #rotate-prompt {
+        padding:
+          calc(2rem + env(safe-area-inset-top, 0px))
+          calc(2rem + env(safe-area-inset-right, 0px))
+          calc(2rem + env(safe-area-inset-bottom, 0px))
+          calc(2rem + env(safe-area-inset-left, 0px));
+      }
       #game-container.mobile-hidden {
         visibility: hidden;
         pointer-events: none;

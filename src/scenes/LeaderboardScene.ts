@@ -72,7 +72,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     this.updateHeaders();
 
     const back = this.add
-      .text(GAME_WIDTH / 2, GAME_HEIGHT - 48, '← BACK', {
+      .text(GAME_WIDTH / 2, this.layout.backY, '← BACK', {
         fontFamily: UI_FONTS.body,
         fontSize: '18px',
         color: '#a89bc4',
@@ -274,7 +274,7 @@ export default class LeaderboardScene extends Phaser.Scene {
   private renderScoreEntries(entries: LeaderboardEntry[]): void {
     const container = this.beginContentContainer();
 
-    entries.slice(0, 12).forEach((entry, i) => {
+    entries.slice(0, this.layout.maxRows).forEach((entry, i) => {
       const y = this.layout.rowStartY + i * this.layout.rowHeight;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];
@@ -317,7 +317,7 @@ export default class LeaderboardScene extends Phaser.Scene {
   private renderCoinEntries(entries: CoinLeaderboardEntry[]): void {
     const container = this.beginContentContainer();
 
-    entries.slice(0, 12).forEach((entry, i) => {
+    entries.slice(0, this.layout.maxRows).forEach((entry, i) => {
       const y = this.layout.rowStartY + i * this.layout.rowHeight;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];

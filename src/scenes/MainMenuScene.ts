@@ -40,6 +40,7 @@ import { destroyAuthFormOverlay } from '../ui/authForm';
 import { focusGameSurface } from '../utils/sceneNav';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
+import { fitContainerToGameHeight } from '../utils/mobileLayout';
 import { onGameAudioUnlocked, unlockMobileAudio } from '../utils/audioUnlock';
 import {
   hasIntroSfx,
@@ -96,11 +97,12 @@ export default class MainMenuScene extends Phaser.Scene {
 
     this.menuUi = this.add.container(0, 0).setDepth(10);
 
-    const titleCenterY = 128;
-    let contentBottomY = 195;
+    const mobile = isMobileTouchDevice();
+    const titleCenterY = mobile ? 96 : 128;
+    let contentBottomY = mobile ? 168 : 195;
 
     if (hasTitleTexture(this)) {
-      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY);
+      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY, mobile ? 400 : undefined);
       if (title) {
         title.setDepth(0);
         this.menuUi.add(title);
@@ -143,10 +145,10 @@ export default class MainMenuScene extends Phaser.Scene {
       this.menuUi.add([titleGlow, titleMain, subtitle, tagline]);
     }
 
-    const menuButtonWidth = MENU_BUTTON_DISPLAY_WIDTH;
-    const menuButtonGap = 76;
+    const menuButtonWidth = mobile ? 260 : MENU_BUTTON_DISPLAY_WIDTH;
+    const menuButtonGap = mobile ? 58 : 76;
     const menuButtonHeight = menuButtonWidth * (293 / 1242);
-    const menuStartY = contentBottomY + 34;
+    const menuStartY = contentBottomY + (mobile ? 24 : 34);
 
     if (hasPlayButtonTexture(this)) {
       this.addImageMenuButton(
@@ -179,12 +181,15 @@ export default class MainMenuScene extends Phaser.Scene {
     void waitForAuthReady().then(async () => {
       if (!this.scene.isActive()) return;
       await this.mountAuthSection(authButtonY, menuButtonWidth, menuButtonHeight);
+      if (mobile && this.scene.isActive()) {
+        fitContainerToGameHeight(this.menuUi, GAME_HEIGHT - 16, 8);
+      }
     });
 
     const footerHint = this.add
       .text(
         GAME_WIDTH / 2,
-        GAME_HEIGHT - 36,
+        mobile ? GAME_HEIGHT - 24 : GAME_HEIGHT - 36,
         isMobileTouchDevice()
           ? 'Rotate to landscape  ·  Touch controls in-game'
           : 'Click FULLSCREEN for best view  ·  Space / A to confirm  ·  Mouse + Keyboard + Controller',
@@ -198,6 +203,13 @@ export default class MainMenuScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
     this.menuUi.add(footerHint);
+
+    if (mobile) {
+      this.time.delayedCall(0, () => {
+        if (!this.scene.isActive()) return;
+        fitContainerToGameHeight(this.menuUi, GAME_HEIGHT - 16, 8);
+      });
+    }
 
     this.refreshHighlight();
     this.startMenuAudio();
