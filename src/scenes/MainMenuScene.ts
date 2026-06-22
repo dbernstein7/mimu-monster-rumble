@@ -40,7 +40,6 @@ import { destroyAuthFormOverlay } from '../ui/authForm';
 import { focusGameSurface } from '../utils/sceneNav';
 import { resetRunState, FRESH_RUN_SELECT_DATA } from '../utils/runState';
 import { isMobileTouchDevice } from '../utils/device';
-import { fitContainerToGameHeight } from '../utils/mobileLayout';
 import { onGameAudioUnlocked, unlockMobileAudio } from '../utils/audioUnlock';
 import {
   hasIntroSfx,
@@ -59,6 +58,37 @@ import {
 } from '../assets/musicAssets';
 
 type MenuAction = () => void;
+
+interface MainMenuButtonLayout {
+  buttonWidth: number;
+  buttonGap: number;
+  buttonHeight: number;
+  menuStartY: number;
+}
+
+function getMainMenuButtonLayout(mobile: boolean, contentBottomY: number): MainMenuButtonLayout {
+  const aspect = 293 / 1242;
+  if (!mobile) {
+    const buttonWidth = MENU_BUTTON_DISPLAY_WIDTH;
+    return {
+      buttonWidth,
+      buttonGap: 76,
+      buttonHeight: buttonWidth * aspect,
+      menuStartY: contentBottomY + 34,
+    };
+  }
+
+  const buttonWidth = 380;
+  const buttonHeight = buttonWidth * aspect;
+  const buttonGap = buttonHeight + 28;
+  const areaTop = contentBottomY + 40;
+  const areaBottom = GAME_HEIGHT - 48;
+  const stackHeight = buttonHeight * 3 + buttonGap * 2;
+  const menuStartY =
+    areaTop + Math.max(20, (areaBottom - areaTop - stackHeight) * 0.5) + buttonHeight / 2;
+
+  return { buttonWidth, buttonGap, buttonHeight, menuStartY };
+}
 
 export default class MainMenuScene extends Phaser.Scene {
   private inputManager!: InputManager;
@@ -98,11 +128,11 @@ export default class MainMenuScene extends Phaser.Scene {
     this.menuUi = this.add.container(0, 0).setDepth(10);
 
     const mobile = isMobileTouchDevice();
-    const titleCenterY = mobile ? 96 : 128;
-    let contentBottomY = mobile ? 168 : 195;
+    const titleCenterY = mobile ? 84 : 128;
+    let contentBottomY = mobile ? 158 : 195;
 
     if (hasTitleTexture(this)) {
-      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY, mobile ? 400 : undefined);
+      const title = addMenuTitle(this, GAME_WIDTH / 2, titleCenterY, mobile ? 420 : undefined);
       if (title) {
         title.setDepth(0);
         this.menuUi.add(title);
@@ -145,10 +175,8 @@ export default class MainMenuScene extends Phaser.Scene {
       this.menuUi.add([titleGlow, titleMain, subtitle, tagline]);
     }
 
-    const menuButtonWidth = mobile ? 260 : MENU_BUTTON_DISPLAY_WIDTH;
-    const menuButtonGap = mobile ? 58 : 76;
-    const menuButtonHeight = menuButtonWidth * (293 / 1242);
-    const menuStartY = contentBottomY + (mobile ? 24 : 34);
+    const { buttonWidth: menuButtonWidth, buttonGap: menuButtonGap, buttonHeight: menuButtonHeight, menuStartY } =
+      getMainMenuButtonLayout(mobile, contentBottomY);
 
     if (hasPlayButtonTexture(this)) {
       this.addImageMenuButton(
@@ -180,10 +208,7 @@ export default class MainMenuScene extends Phaser.Scene {
 
     void waitForAuthReady().then(async () => {
       if (!this.scene.isActive()) return;
-      await this.mountAuthSection(authButtonY, menuButtonWidth, menuButtonHeight);
-      if (mobile && this.scene.isActive()) {
-        fitContainerToGameHeight(this.menuUi, GAME_HEIGHT - 16, 8);
-      }
+      await this.mountAuthSection(authButtonY, menuButtonWidth, menuButtonHeight, mobile);
     });
 
     const footerHint = this.add
@@ -203,13 +228,6 @@ export default class MainMenuScene extends Phaser.Scene {
       )
       .setOrigin(0.5);
     this.menuUi.add(footerHint);
-
-    if (mobile) {
-      this.time.delayedCall(0, () => {
-        if (!this.scene.isActive()) return;
-        fitContainerToGameHeight(this.menuUi, GAME_HEIGHT - 16, 8);
-      });
-    }
 
     this.refreshHighlight();
     this.startMenuAudio();
@@ -324,10 +342,12 @@ export default class MainMenuScene extends Phaser.Scene {
     authButtonY: number,
     menuButtonWidth: number,
     menuButtonHeight: number,
+    mobile = false,
   ): Promise<void> {
     const user = getCurrentUser();
-    const usernameY = authButtonY + menuButtonHeight / 2 + 22;
-    let footerY = authButtonY + menuButtonHeight / 2 + 72;
+    const authTextGap = mobile ? 16 : 22;
+    const usernameY = authButtonY + menuButtonHeight / 2 + authTextGap;
+    let footerY = authButtonY + menuButtonHeight / 2 + (mobile ? 56 : 72);
 
     if (user) {
       if (hasLogOutButtonTexture(this)) {
@@ -345,7 +365,7 @@ export default class MainMenuScene extends Phaser.Scene {
       const username = this.add
         .text(GAME_WIDTH / 2, usernameY, `●  ${user.username}`, {
           fontFamily: UI_FONTS.body,
-          fontSize: '16px',
+          fontSize: mobile ? '14px' : '16px',
           color: '#2ed573',
           fontStyle: 'bold',
         })
@@ -355,9 +375,9 @@ export default class MainMenuScene extends Phaser.Scene {
       const profile = await loadUserProfile();
       if (profile && this.scene.isActive()) {
         const wallet = this.add
-          .text(GAME_WIDTH / 2, usernameY + 22, `◎ ${formatScore(profile.totalCoins)} banked coins`, {
+          .text(GAME_WIDTH / 2, usernameY + (mobile ? 18 : 22), `◎ ${formatScore(profile.totalCoins)} banked coins`, {
             fontFamily: UI_FONTS.body,
-            fontSize: '14px',
+            fontSize: mobile ? '12px' : '14px',
             color: '#ffd166',
             fontStyle: 'bold',
           })
@@ -365,7 +385,7 @@ export default class MainMenuScene extends Phaser.Scene {
         this.menuUi.add(wallet);
       }
 
-      footerY = usernameY + 74;
+      footerY = usernameY + (mobile ? 58 : 74);
     } else if (hasSignInButtonTexture(this)) {
       this.addImageMenuButton(
         GAME_WIDTH / 2,
