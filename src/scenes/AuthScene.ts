@@ -95,7 +95,7 @@ export default class AuthScene extends Phaser.Scene {
           showContinue: signedIn,
           onContinue: () => this.goToNextScene(),
           onForgotPassword: () => void this.handleForgotPassword(),
-          layout: { formTopY: layout.formTopY, backY: layout.backY },
+          layout: { formTopY: layout.formTopY, panelBottomY: layout.panelBottomY },
         },
       );
       this.authForm.setMode(this.mode);
