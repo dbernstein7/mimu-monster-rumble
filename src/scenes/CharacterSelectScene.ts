@@ -98,22 +98,22 @@ function mountCharacterSelectLore(
   };
 
   let y = startY;
-  const paragraphGap = 10;
+  const paragraphGap = 11;
   const bodyStyle: Phaser.Types.GameObjects.Text.TextStyle = {
     fontFamily: UI_FONTS.body,
-    fontSize: '9px',
+    fontSize: '11px',
     color: '#a89bc4',
     wordWrap: { width: maxWidth, useAdvancedWrap: true },
-    lineSpacing: 3,
+    lineSpacing: 4,
   };
 
   const headline = addLoreText(LORE_LEFT_X, y, 'The Chaos Core has awakened.', {
     fontFamily: UI_FONTS.headline,
-    fontSize: '12px',
+    fontSize: '14px',
     color: '#ffc857',
     fontStyle: 'bold',
     wordWrap: { width: maxWidth, useAdvancedWrap: true },
-    lineSpacing: 3,
+    lineSpacing: 4,
   });
   y += headline.height + paragraphGap;
 
