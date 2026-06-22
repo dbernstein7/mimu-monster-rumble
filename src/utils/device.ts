@@ -4,6 +4,11 @@ import type { Game as PhaserGame } from 'phaser';
 const MOBILE_VIEWPORT_IDS = ['game-container', 'boot-loader', 'rotate-prompt'] as const;
 
 let viewportGame: PhaserGame | undefined;
+let lastFullMobileHeight = 0;
+
+function isAuthFormOpen(): boolean {
+  return !!document.querySelector('.mimu-auth-shell');
+}
 
 export function isMobileTouchDevice(): boolean {
   if (typeof window === 'undefined') return false;
@@ -34,12 +39,24 @@ export function syncMobileViewport(): void {
   if (!isMobileTouchDevice()) return;
 
   const vv = window.visualViewport;
+  const authOpen = isAuthFormOpen();
+
   if (vv) {
+    const keyboardShrunk = vv.height < window.innerHeight * 0.82;
+    if (!authOpen || !keyboardShrunk) {
+      lastFullMobileHeight = vv.height;
+    }
+
+    const height =
+      authOpen && keyboardShrunk
+        ? Math.max(lastFullMobileHeight, window.innerHeight)
+        : vv.height;
+
     layoutMobileElements(
       Math.max(0, vv.offsetTop),
       Math.max(0, vv.offsetLeft),
       vv.width,
-      vv.height,
+      height,
     );
     return;
   }
@@ -50,7 +67,9 @@ export function syncMobileViewport(): void {
 function onMobileViewportChange(): void {
   syncMobileViewport();
   syncMobileOrientationUi();
-  viewportGame?.scale.refresh();
+  if (!isAuthFormOpen()) {
+    viewportGame?.scale.refresh();
+  }
 }
 
 export function bindMobileViewport(game?: PhaserGame): void {

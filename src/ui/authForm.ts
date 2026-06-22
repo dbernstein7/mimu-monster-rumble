@@ -265,6 +265,17 @@ function ensureStyles(): void {
     .${OVERLAY_CLASS}.mimu-auth-overlay--mobile .${FORM_CLASS} .mimu-auth-submit {
       min-height: 46px;
     }
+    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-title,
+    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-subtitle,
+    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-tabs {
+      display: none;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-keyboard-open .mimu-auth-action.mimu-auth-back {
+      display: none;
+    }
+    .${OVERLAY_CLASS}.mimu-auth-keyboard-open {
+      gap: 0.25rem;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -287,6 +298,13 @@ function panelRectInContainer(
   };
 }
 
+function isMobileKeyboardOpen(): boolean {
+  if (!isMobileTouchDevice()) return false;
+  const vv = window.visualViewport;
+  if (!vv) return false;
+  return vv.height < window.innerHeight * 0.82;
+}
+
 function positionAuthUi(
   overlay: HTMLElement,
   scene: Phaser.Scene,
@@ -297,9 +315,27 @@ function positionAuthUi(
   if (!container || !canvas) return;
 
   const mobile = isMobileTouchDevice();
+  const keyboardOpen = isMobileKeyboardOpen();
   overlay.classList.toggle('mimu-auth-overlay--mobile', mobile);
+  overlay.classList.toggle('mimu-auth-keyboard-open', keyboardOpen);
 
   const containerRect = container.getBoundingClientRect();
+  const vv = window.visualViewport;
+
+  if (mobile && keyboardOpen && vv) {
+    const pad = 8;
+    const left = vv.offsetLeft - containerRect.left + pad;
+    const top = vv.offsetTop - containerRect.top + pad;
+    const width = Math.max(200, vv.width - pad * 2);
+    const height = Math.max(140, vv.height - pad * 2);
+
+    overlay.style.left = `${left}px`;
+    overlay.style.top = `${top}px`;
+    overlay.style.width = `${width}px`;
+    overlay.style.height = `${height}px`;
+    return;
+  }
+
   const canvasRect = canvas.getBoundingClientRect();
   const rect = panelRectInContainer(canvasRect, containerRect, layout.panelInsets);
 
@@ -512,6 +548,15 @@ export function mountAuthForm(
   for (const input of [usernameInput, emailInput, passwordInput]) {
     input.addEventListener('keydown', stopGameKeys);
     input.addEventListener('keyup', stopGameKeys);
+    input.addEventListener('focus', () => {
+      requestAnimationFrame(() => {
+        syncPosition();
+        input.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
+    });
+    input.addEventListener('blur', () => {
+      requestAnimationFrame(syncPosition);
+    });
   }
 
   root.addEventListener('submit', (event) => {
