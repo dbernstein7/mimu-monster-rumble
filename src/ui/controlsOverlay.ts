@@ -4,6 +4,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import { isMobileTouchDevice } from '../utils/device';
 import { getMobileGameUiInsets } from '../utils/mobileLayout';
 import { createIconButton, UI_COLORS, UI_FONTS } from './theme';
+import { setCharacterSelectBackVisible } from './characterSelectOverlay';
 
 const BUTTON_SIZE = 40;
 const BUTTON_PAD = 14;
@@ -80,11 +81,14 @@ function closeControlsModal(scene: Phaser.Scene, onClose?: () => void): void {
     modal.destroy();
     modalByScene.delete(scene);
   }
+  setCharacterSelectBackVisible(true);
   onClose?.();
 }
 
 function openControlsModal(scene: Phaser.Scene, onClose?: () => void): void {
   if (modalByScene.has(scene) || !hasControlsTexture(scene)) return;
+
+  setCharacterSelectBackVisible(false);
 
   const modal = scene.add.container(0, 0).setScrollFactor(0).setDepth(MODAL_DEPTH);
   modalByScene.set(scene, modal);

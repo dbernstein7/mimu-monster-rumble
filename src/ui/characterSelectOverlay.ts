@@ -69,6 +69,14 @@ export function destroyCharacterSelectOverlay(): void {
   });
 }
 
+/** Hide while another HTML/canvas overlay (e.g. controls modal) is on top. */
+export function setCharacterSelectBackVisible(visible: boolean): void {
+  document.querySelectorAll<HTMLElement>(`.${BTN_CLASS}`).forEach((btn) => {
+    btn.style.visibility = visible ? '' : 'hidden';
+    btn.style.pointerEvents = visible ? '' : 'none';
+  });
+}
+
 /** HTML back button aligned to canvas coordinates (not letterboxed container %). */
 export function mountCharacterSelectBackButton(
   scene: Phaser.Scene,
