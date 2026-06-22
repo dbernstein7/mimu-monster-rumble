@@ -52,7 +52,7 @@ export default class LeaderboardScene extends Phaser.Scene {
     this.cameras.main.setBackgroundColor('#000000');
     this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000).setDepth(-20);
     mountFullscreenButton(this);
-    createGlowTitle(this, GAME_WIDTH / 2, 50, 'LEADERBOARD', '34px');
+    createGlowTitle(this, GAME_WIDTH / 2, this.layout.titleY, 'LEADERBOARD', '34px', 6);
 
     const panel = this.add.graphics().setDepth(0);
     if (hasBorder) {
@@ -70,9 +70,13 @@ export default class LeaderboardScene extends Phaser.Scene {
     }
 
     this.statusText = this.add
-      .text(GAME_WIDTH / 2, 88, '', subtitleStyle('13px'))
+      .text(GAME_WIDTH / 2, this.layout.subtitleY, '', {
+        ...subtitleStyle('13px'),
+        align: 'center',
+        wordWrap: { width: LEADERBOARD_PANEL.width - 80 },
+      })
       .setOrigin(0.5)
-      .setDepth(5);
+      .setDepth(6);
 
     this.createTabs();
     this.updateHeaders();

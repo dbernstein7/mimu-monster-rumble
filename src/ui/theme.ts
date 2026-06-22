@@ -117,11 +117,12 @@ export function createGlowTitle(
   y: number,
   text: string,
   fontSize = '42px',
+  depth = 1,
 ): Phaser.GameObjects.Text {
-  const glow = scene.add.text(x, y, text, titleStyle(fontSize)).setOrigin(0.5).setDepth(0);
+  const glow = scene.add.text(x, y, text, titleStyle(fontSize)).setOrigin(0.5).setDepth(depth - 1);
   glow.setTint(0xff8c32);
   glow.setAlpha(0.35);
-  return scene.add.text(x, y, text, titleStyle(fontSize)).setOrigin(0.5).setDepth(1);
+  return scene.add.text(x, y, text, titleStyle(fontSize)).setOrigin(0.5).setDepth(depth);
 }
 
 export function createHeadlineGlowTitle(

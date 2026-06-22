@@ -42,6 +42,8 @@ const LEADERBOARD_BORDER_WRAP = 1.06;
 export function getLeaderboardContentLayout(hasBorder: boolean) {
   const yShift = hasBorder ? 42 : 0;
   const xPad = hasBorder ? 10 : 0;
+  const panelBottom = LEADERBOARD_PANEL.y + LEADERBOARD_PANEL.height;
+  const bottomPad = hasBorder ? 52 : 30;
   return {
     tabY: 118 + yShift,
     headerY: 156 + yShift,
@@ -53,6 +55,8 @@ export function getLeaderboardContentLayout(hasBorder: boolean) {
     colScore: 900,
     rowRectX: 100 + xPad,
     rowRectW: GAME_WIDTH - 200 - xPad * 2,
+    titleY: panelBottom - bottomPad - 22,
+    subtitleY: panelBottom - bottomPad,
   };
 }
 
