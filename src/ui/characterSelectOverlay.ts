@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { GAME_HEIGHT } from '../config/gameConstants';
+import { isMobileTouchDevice } from '../utils/device';
 import {
   bindSceneOverlayPosition,
   getCanvasScreenRect,
@@ -45,6 +46,13 @@ function ensureStyles(): void {
       border-color: #ffc857;
       color: #ffc857;
     }
+    .${SHELL_CLASS}.mimu-char-select-shell--mobile .${BTN_CLASS} {
+      padding: 0.4rem 0.85rem;
+      min-height: 34px;
+      font-size: 12px;
+      border-radius: 8px;
+      border-width: 1px;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -66,6 +74,9 @@ export function mountCharacterSelectBackButton(
 
   const shell = document.createElement('div');
   shell.className = SHELL_CLASS;
+  if (isMobileTouchDevice()) {
+    shell.classList.add('mimu-char-select-shell--mobile');
+  }
 
   const btn = document.createElement('button');
   btn.type = 'button';

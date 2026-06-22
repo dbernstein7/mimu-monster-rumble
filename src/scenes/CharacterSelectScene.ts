@@ -45,10 +45,10 @@ const CARD_LAYOUT = {
 function getCardLayout() {
   if (!isMobileTouchDevice()) return CARD_LAYOUT;
   return {
-    rowY: [208, 448] as const,
-    maxWidth: 540,
-    maxHeight: 220,
-    columnGap: 14,
+    rowY: [236, 492] as const,
+    maxWidth: 628,
+    maxHeight: 272,
+    columnGap: 10,
     hitPadding: 12,
   };
 }
