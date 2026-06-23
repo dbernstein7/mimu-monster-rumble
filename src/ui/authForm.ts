@@ -76,6 +76,10 @@ function ensureStyles(): void {
       z-index: 10000;
       pointer-events: none;
     }
+    #game-container .${SHELL_CLASS} {
+      position: absolute;
+      inset: 0;
+    }
     .${SHELL_CLASS}.mimu-auth-keyboard-open::before {
       content: '';
       position: fixed;
@@ -542,17 +546,20 @@ export function mountAuthForm(
 
   overlay.append(scroll, backBtn);
   shell.append(overlay);
-  document.body.appendChild(shell);
+  container.appendChild(shell);
 
   const syncPosition = (): void => {
     if (shell.isConnected) {
       positionAuthUi(shell, overlay, scene, layout);
     }
   };
+  const onViewportChange = (): void => scheduleAuthReposition(syncPosition);
 
   scheduleAuthReposition(syncPosition);
-  scene.scale.on('resize', syncPosition);
-  window.addEventListener('resize', syncPosition);
+  scene.scale.on('resize', onViewportChange);
+  scene.scale.on('enterfullscreen', onViewportChange);
+  scene.scale.on('leavefullscreen', onViewportChange);
+  window.addEventListener('resize', onViewportChange);
   window.visualViewport?.addEventListener('resize', syncPosition);
   window.visualViewport?.addEventListener('scroll', syncPosition);
 
@@ -639,8 +646,10 @@ export function mountAuthForm(
   const destroyForm = (): void => {
     if (destroyed) return;
     destroyed = true;
-    scene.scale.off('resize', syncPosition);
-    window.removeEventListener('resize', syncPosition);
+    scene.scale.off('resize', onViewportChange);
+    scene.scale.off('enterfullscreen', onViewportChange);
+    scene.scale.off('leavefullscreen', onViewportChange);
+    window.removeEventListener('resize', onViewportChange);
     window.visualViewport?.removeEventListener('resize', syncPosition);
     window.visualViewport?.removeEventListener('scroll', syncPosition);
     document.body.classList.remove('mimu-auth-input-focused');
