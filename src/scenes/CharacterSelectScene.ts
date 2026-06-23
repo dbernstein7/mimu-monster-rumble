@@ -11,7 +11,7 @@ import {
 } from '../ui/theme';
 import { mountControlsButton } from '../ui/controlsOverlay';
 import type { CharacterId } from '../types/game';
-import { isMobileTouchDevice } from '../utils/device';
+import { isMobileTouchDevice, prepareMobileSceneHandoff } from '../utils/device';
 import { unlockMobileAudio } from '../utils/audioUnlock';
 import {
   destroyCharacterSelectOverlay,
@@ -164,6 +164,9 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (isMobileTouchDevice()) {
+      prepareMobileSceneHandoff(this.game);
+    }
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();
     this.inputManager = new InputManager(this);
@@ -392,7 +395,11 @@ export default class CharacterSelectScene extends Phaser.Scene {
 
     this.registry.set('characterId', id);
     this.registry.set('levelIndex', this.targetLevelIndex);
-    startSceneNextTick(this.game, 'GameScene', { characterId: id, levelIndex: this.targetLevelIndex }, 0);
+    if (isMobileTouchDevice()) {
+      prepareMobileSceneHandoff(this.game);
+      this.input.resetPointers();
+    }
+    startSceneNextTick(this.game, 'GameScene', { characterId: id, levelIndex: this.targetLevelIndex }, isMobileTouchDevice() ? 48 : 0);
   }
 
   private stopChooseMimuAudio(): void {

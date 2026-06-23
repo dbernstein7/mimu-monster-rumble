@@ -55,6 +55,15 @@ export function refreshMobileGameScale(): void {
   viewportGame.scale.refresh();
 }
 
+/** Keep the canvas visible and scaled before mobile scene handoffs. */
+export function prepareMobileSceneHandoff(game?: PhaserGame): void {
+  if (!isMobileTouchDevice()) return;
+  if (game) viewportGame = game;
+  document.getElementById('game-container')?.classList.remove('mobile-hidden');
+  syncMobileOrientationUi();
+  refreshMobileGameScale();
+}
+
 function onMobileViewportChange(): void {
   window.clearTimeout(viewportChangeTimer);
   viewportChangeTimer = window.setTimeout(() => {
