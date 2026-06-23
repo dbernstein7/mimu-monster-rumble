@@ -17,7 +17,6 @@ import {
   collection,
   doc,
   setDoc,
-  updateDoc,
   getDoc,
   getDocs,
   query,
@@ -323,7 +322,7 @@ export async function submitScore(entry: LeaderboardEntry): Promise<SubmitScoreR
       const existing = await getDoc(ref);
       const prevScore = existing.exists() ? (existing.data() as LeaderboardEntry).score : -1;
       if (normalized.score > prevScore) {
-        const firestorePayload: LeaderboardEntry = {
+        const firestorePayload = {
           userId: normalized.userId,
           username: normalized.username,
           score: normalized.score,
@@ -332,11 +331,7 @@ export async function submitScore(entry: LeaderboardEntry): Promise<SubmitScoreR
           timestamp: normalized.timestamp,
           ...(normalized.character2 ? { character2: normalized.character2 } : {}),
         };
-        if (existing.exists()) {
-          await updateDoc(ref, firestorePayload);
-        } else {
-          await setDoc(ref, firestorePayload);
-        }
+        await setDoc(ref, firestorePayload, { merge: true });
         firebaseSaved = true;
       } else if (existing.exists()) {
         firestoreNotBest = true;
