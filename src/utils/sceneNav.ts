@@ -51,6 +51,11 @@ function stopScenesExcept(game: Phaser.Game, keepKey: string): void {
   }
 }
 
+/** Stop every scene except the one we are entering — prevents ghost input from menu scenes. */
+export function stopOtherScenes(game: Phaser.Game, keepKey: string): void {
+  stopScenesExcept(game, keepKey);
+}
+
 function clearOverlaysForScene(key: string): void {
   if (key !== AUTH_SCENE_KEY) {
     destroyAuthFormOverlay();
@@ -96,9 +101,7 @@ export function startSceneNextTick(
       prepareMobileSceneHandoff(game);
     }
     releaseStuckPointers(game);
-    if (!isMobileTouchDevice()) {
-      stopScenesExcept(game, key);
-    }
+    stopScenesExcept(game, key);
     game.scene.start(key, data);
   }, delayMs);
 }

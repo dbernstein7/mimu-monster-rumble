@@ -22,6 +22,7 @@ import {
   MAIN_MENU_INPUT_GUARD_MS,
   MAIN_MENU_SCENE_KEY,
   startSceneNextTick,
+  stopOtherScenes,
 } from '../utils/sceneNav';
 import { resetRunState, RUN_MIMU1_KEY } from '../utils/runState';
 import {
@@ -147,6 +148,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   private selectedIndex = 0;
   private cardImages: (Phaser.GameObjects.Image | Phaser.GameObjects.Rectangle)[] = [];
   private selectionGfx: Phaser.GameObjects.Graphics[] = [];
+  private cardHits: Phaser.GameObjects.Rectangle[] = [];
   private inputManager!: InputManager;
   private targetLevelIndex = 0;
   private continueRun = false;
@@ -164,11 +166,13 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    stopOtherScenes(this.game, 'CharacterSelectScene');
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();
     this.inputManager = new InputManager(this);
     this.cardImages = [];
     this.selectionGfx = [];
+    this.cardHits = [];
     this.selectedIndex = 0;
 
     if (this.continueRun) {
@@ -250,6 +254,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
             this.refreshHighlight();
           });
         hit.on('pointerdown', () => this.startWithCharacter(charId));
+        this.cardHits.push(hit);
       } else {
         const placeholder = this.add
           .rectangle(x, y, cardLayout.maxWidth, cardLayout.maxHeight, c.color, 0.35)
@@ -266,6 +271,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
             this.refreshHighlight();
           });
         hit.on('pointerdown', () => this.startWithCharacter(charId));
+        this.cardHits.push(hit);
 
         this.add
           .text(x, y, c.name.toUpperCase(), {
@@ -289,9 +295,17 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.disableCardInput();
     stopChooseMimuVideo(this.chooseMimuAudio);
     this.chooseMimuAudio = undefined;
     destroyCharacterSelectOverlay();
+  }
+
+  private disableCardInput(): void {
+    this.input.enabled = false;
+    for (const hit of this.cardHits) {
+      if (hit.active) hit.disableInteractive();
+    }
   }
 
   update(): void {
@@ -328,6 +342,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   private goBackToMainMenu(): void {
     if (this.leaving) return;
     this.leaving = true;
+    this.disableCardInput();
 
     this.stopChooseMimuAudio();
     destroyCharacterSelectOverlay();
@@ -379,6 +394,8 @@ export default class CharacterSelectScene extends Phaser.Scene {
 
   private startWithCharacter(id: CharacterId): void {
     if (this.leaving) return;
+    this.leaving = true;
+    this.disableCardInput();
 
     unlockMobileAudio(this.game);
     this.stopChooseMimuAudio();

@@ -25,6 +25,7 @@ import {
   startSceneNextTick,
   GAME_OVER_SCENE_KEY,
   CHARACTER_SELECT_SCENE_KEY,
+  stopOtherScenes,
 } from '../utils/sceneNav';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
 import { dismissControlsModal } from '../ui/controlsOverlay';
@@ -144,6 +145,7 @@ export default class GameScene extends Phaser.Scene {
 
   create(): void {
     destroyCharacterSelectOverlay();
+    stopOtherScenes(this.game, 'GameScene');
     const level = getLevel(this.levelIndex);
     this.time.timeScale = 1;
     this.physics.resume();
