@@ -236,13 +236,6 @@ export class MobileControls {
     }
   }
 
-  /** Hide touch UI during boss exit / scene change so nothing blocks the transition. */
-  prepareForSceneTransition(): void {
-    if (!isMobileTouchDevice()) return;
-    this.setEnabled(false);
-    this.container.setVisible(false);
-  }
-
   getMovement(): { x: number; y: number } {
     const len = Math.hypot(this.stickX, this.stickY);
     if (len < JOYSTICK_DEADZONE) return { x: 0, y: 0 };
