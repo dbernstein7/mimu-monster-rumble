@@ -7,6 +7,7 @@ import { loadAttackTextures, registerAttackAnimations } from './attackAssets';
 import { loadCoinTextures } from './coinAssets';
 import {
   configureCharacterSelectCardTextures,
+  hasCharacterSelectCard,
   loadCharacterSelectCards,
 } from './characterSelectAssets';
 import { loadBoss2SlimeBallTextures } from './bossProjectileAssets';
@@ -28,9 +29,35 @@ const LEVEL_2_ENEMIES: EnemyType[] = ['skeleton', 'slime', 'zombie', 'witch'];
 
 let deferredLoadPromise: Promise<void> | null = null;
 let deferredAssetsReady = false;
+let characterSelectLoadPromise: Promise<void> | null = null;
 
 export function areDeferredAssetsReady(): boolean {
   return deferredAssetsReady;
+}
+
+export function hasCharacterSelectAssetsReady(scene: Phaser.Scene): boolean {
+  return hasCharacterSelectCard(scene, 'voidWarrior');
+}
+
+/** Load hero cards only — needed before character select can render. */
+export function ensureCharacterSelectAssets(scene: Phaser.Scene): Promise<void> {
+  if (hasCharacterSelectAssetsReady(scene)) {
+    return Promise.resolve();
+  }
+  if (characterSelectLoadPromise) {
+    return characterSelectLoadPromise;
+  }
+
+  characterSelectLoadPromise = new Promise((resolve) => {
+    loadCharacterSelectCards(scene);
+    queueLoader(scene, () => {
+      configureCharacterSelectCardTextures(scene);
+      characterSelectLoadPromise = null;
+      resolve();
+    });
+  });
+
+  return characterSelectLoadPromise;
 }
 
 /** Menu + level 1 — keep first paint small on mobile. */

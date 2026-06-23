@@ -26,8 +26,8 @@ import {
 } from '../utils/sceneNav';
 import { resetRunState, RUN_MIMU1_KEY } from '../utils/runState';
 import {
-  areDeferredAssetsReady,
-  ensureDeferredAssets,
+  ensureCharacterSelectAssets,
+  hasCharacterSelectAssetsReady,
 } from '../assets/stagedLoading';
 import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
@@ -170,7 +170,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create(): void {
-    if (!areDeferredAssetsReady()) {
+    if (!hasCharacterSelectAssetsReady(this)) {
       this.cameras.main.setBackgroundColor('#000000');
       const waitText = this.add
         .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'Loading heroes…', {
@@ -183,7 +183,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
         .setDepth(500);
       const levelIndex = this.targetLevelIndex;
       const continueRun = this.continueRun;
-      void ensureDeferredAssets(this.game).then(() => {
+      void ensureCharacterSelectAssets(this).then(() => {
         waitText.destroy();
         if (!this.scene.isActive()) return;
         this.scene.restart({ levelIndex, continueRun });

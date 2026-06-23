@@ -16,7 +16,7 @@ import { PlayerWalkingSfx } from '../systems/PlayerWalkingSfx';
 import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
-import { isMobileTouchDevice, prepareMobileSceneHandoff } from '../utils/device';
+import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
@@ -28,6 +28,10 @@ import {
   stopOtherScenes,
   launchSceneNow,
 } from '../utils/sceneNav';
+import {
+  ensureCharacterSelectAssets,
+  startDeferredAssetLoad,
+} from '../assets/stagedLoading';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
 import { dismissControlsModal, isControlsModalOpen, mountControlsButton } from '../ui/controlsOverlay';
 import { getCurrentUser, submitScore, waitForAuthReady } from '../services/firebase';
@@ -82,19 +86,6 @@ function getPauseContentLayout(hasBorder: boolean) {
     hintY: innerTop + innerHeight * 0.9,
   };
 }
-
-/** Mobile boss → character select — instant handoff after brief banner. */
-const MOBILE_BOSS_EXIT = {
-  walkSpeedMult: 4,
-  maxWalkMs: 700,
-  arrivePx: 32,
-  fadeMs: 0,
-  walkSafetyMs: 800,
-  forceCompleteMs: 1000,
-  bannerMs: 60,
-  sceneRetryMs: 0,
-  sceneFallbackMs: 40,
-} as const;
 
 const MOBILE_WAVE_GAP_MS = 400;
 const DESKTOP_WAVE_GAP_MS = 2000;
@@ -285,6 +276,11 @@ export default class GameScene extends Phaser.Scene {
     this.spawnWave();
     this.startLevelMusic();
     onGameAudioUnlocked(() => this.ensureLevelMusicPlaying(), this);
+
+    if (this.levelIndex === 0) {
+      void startDeferredAssetLoad(this.game);
+      void ensureCharacterSelectAssets(this);
+    }
 
     if (isMobileTouchDevice()) {
       const onVisible = (): void => {
@@ -902,6 +898,10 @@ export default class GameScene extends Phaser.Scene {
     if (this.bossActive) return;
     this.bossActive = true;
 
+    if (this.levelIndex === 0) {
+      void ensureCharacterSelectAssets(this);
+    }
+
     stopAllCombatSfx(this);
     [...this.enemies.getChildren()].forEach((e) => {
       const enemy = e as Enemy;
@@ -1082,18 +1082,19 @@ export default class GameScene extends Phaser.Scene {
     [...this.playerProjectiles.getChildren()].forEach((p) => p.destroy());
     [...this.projectiles.getChildren()].forEach((p) => p.destroy());
 
-    this.levelExitActive = true;
-    this.revealExitFloor();
-
     if (isMobileTouchDevice()) {
-      this.scheduleRealtime(() => {
-        if (this.gameEnding || this.levelTransitioning) return;
-        this.levelCompleteBanner.setVisible(false);
-        this.finishLevelExit();
-      }, MOBILE_BOSS_EXIT.bannerMs);
+      this.levelCompleteBanner.setVisible(false);
+      this.levelTransitioning = true;
+      this.registry.set('runScore', this.player.score);
+      this.registry.set('runCoins', this.player.coins);
+      this.registry.set(RUN_MIMU1_KEY, this.characterId);
+      this.registry.set('characterId', this.characterId);
+      this.goToNextLevel();
       return;
     }
 
+    this.levelExitActive = true;
+    this.revealExitFloor();
     const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
@@ -1260,24 +1261,23 @@ export default class GameScene extends Phaser.Scene {
     this.prepareBossExitHandoff();
 
     if (isMobileTouchDevice()) {
-      const startNext = (): void => {
+      const launch = (): void => {
         if (this.game.scene.isActive(nextSceneKey)) return;
-        prepareMobileSceneHandoff(this.game);
-        this.scene.start(nextSceneKey, payload);
+        launchSceneNow(this.game, nextSceneKey, payload);
       };
 
-      startNext();
+      if (nextSceneKey === CHARACTER_SELECT_SCENE_KEY) {
+        void ensureCharacterSelectAssets(this).finally(launch);
+      } else {
+        launch();
+      }
+
       this.levelAdvanceRealtimeSafety = this.scheduleRealtime(() => {
         this.levelAdvanceRealtimeSafety = undefined;
         if (!this.game.scene.isActive(nextSceneKey)) {
           launchSceneNow(this.game, nextSceneKey, payload);
         }
-      }, MOBILE_BOSS_EXIT.sceneRetryMs, { allowInactive: true });
-      this.scheduleRealtime(() => {
-        if (!this.game.scene.isActive(nextSceneKey)) {
-          startSceneNextTick(this.game, nextSceneKey, payload, 0);
-        }
-      }, MOBILE_BOSS_EXIT.sceneFallbackMs, { allowInactive: true });
+      }, 100, { allowInactive: true });
       return;
     }
 
