@@ -29,7 +29,7 @@ import { fetchLeaderboardFromApi, submitScoreToApi } from './leaderboardApi';
 
 export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
 
-export type LeaderboardSource = 'global' | 'local';
+export type LeaderboardSource = 'global' | 'unavailable';
 
 export interface SubmitScoreResult {
   target: ScoreSaveTarget;
@@ -321,36 +321,28 @@ export async function submitScore(entry: LeaderboardEntry): Promise<SubmitScoreR
   return { target: 'local', saved };
 }
 
-async function fetchPersonalBestEntry(userId: string): Promise<LeaderboardEntry | null> {
-  const candidates: LeaderboardEntry[] = [];
-
-  const local = getLocalLeaderboard().find((row) => row.userId === userId);
-  if (local) candidates.push(local);
-
-  if (initFirebase() && db) {
-    try {
-      const snap = await getDoc(doc(db, 'leaderboard', userId));
-      if (snap.exists()) {
-        candidates.push(snap.data() as LeaderboardEntry);
-      }
-    } catch {
-      // Fall through.
+async function fetchCloudPersonalBest(userId: string): Promise<LeaderboardEntry | null> {
+  if (!initFirebase() || !db) return null;
+  try {
+    const snap = await getDoc(doc(db, 'leaderboard', userId));
+    if (snap.exists()) {
+      return snap.data() as LeaderboardEntry;
     }
+  } catch {
+    // Fall through.
   }
-
-  if (candidates.length === 0) return null;
-  return dedupeLeaderboardEntries(candidates)[0] ?? null;
+  return null;
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
   const collected: LeaderboardEntry[] = [];
-  let global = false;
+  let globalAvailable = false;
 
   try {
     const apiEntries = await fetchLeaderboardFromApi();
     if (apiEntries !== null) {
       collected.push(...apiEntries);
-      global = true;
+      globalAvailable = true;
     }
   } catch {
     // Fall through.
@@ -365,25 +357,19 @@ export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
       );
       const snap = await getDocs(q);
       collected.push(...snap.docs.map((d) => d.data() as LeaderboardEntry));
-      global = true;
+      globalAvailable = true;
     } catch {
       // Fall through.
     }
   }
 
-  const user = getCurrentUser();
   let viewerEntry: LeaderboardEntry | null = null;
-  if (user) {
-    viewerEntry = await fetchPersonalBestEntry(user.userId);
-    if (viewerEntry) {
-      const existing = collected.find((row) => row.userId === user.userId);
-      if (!existing || viewerEntry.score > existing.score) {
-        collected.push(viewerEntry);
-      }
-    }
+  const user = getCurrentUser();
+  if (user && globalAvailable) {
+    viewerEntry = await fetchCloudPersonalBest(user.userId);
   }
 
-  if (global) {
+  if (globalAvailable) {
     return {
       entries: dedupeLeaderboardEntries(collected).slice(0, LEADERBOARD_LIMIT),
       source: 'global',
@@ -392,9 +378,9 @@ export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
   }
 
   return {
-    entries: dedupeLeaderboardEntries(getLocalLeaderboard()).slice(0, LEADERBOARD_LIMIT),
-    source: 'local',
-    viewerEntry,
+    entries: [],
+    source: 'unavailable',
+    viewerEntry: null,
   };
 }
 

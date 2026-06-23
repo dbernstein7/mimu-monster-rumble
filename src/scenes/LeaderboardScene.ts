@@ -225,24 +225,31 @@ export default class LeaderboardScene extends Phaser.Scene {
 
     if (this.activeTab === 'scores') {
       const { entries, source, viewerEntry } = await fetchLeaderboard();
-      let status =
-        source === 'global' ? 'Live global scores' : 'Showing scores saved on this device';
-      if (viewerEntry && getCurrentUser()) {
-        const onBoard = entries.some((row) => row.userId === viewerEntry.userId);
-        status += onBoard
-          ? `  ·  Your best: ${formatScore(viewerEntry.score)}`
-          : `  ·  Your best: ${formatScore(viewerEntry.score)} (outside top ${this.layout.maxRows})`;
+
+      if (source === 'unavailable') {
+        this.statusText?.setText('Global leaderboard unavailable — try again in a moment');
+      } else {
+        let status = 'Live global high scores';
+        if (viewerEntry && getCurrentUser()) {
+          const onBoard = entries.some((row) => row.userId === viewerEntry.userId);
+          status += onBoard
+            ? `  ·  Your best: ${formatScore(viewerEntry.score)}`
+            : `  ·  Your best: ${formatScore(viewerEntry.score)} (outside top ${this.layout.maxRows})`;
+        }
+        this.statusText?.setText(status);
       }
-      this.statusText?.setText(status);
+
       this.loadingText?.destroy();
       this.loadingText = undefined;
 
       if (entries.length === 0) {
         const container = this.beginContentContainer();
+        const emptyMessage =
+          source === 'unavailable'
+            ? 'Could not load the global leaderboard. Check your connection and try again.'
+            : 'No global scores yet — be the first on the board!';
         container.add(
-          this.add
-            .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'No legends yet — claim the top spot!', subtitleStyle('18px'))
-            .setOrigin(0.5),
+          this.add.text(GAME_WIDTH / 2, GAME_HEIGHT / 2, emptyMessage, subtitleStyle('18px')).setOrigin(0.5),
         );
         return;
       }
