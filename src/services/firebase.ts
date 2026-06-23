@@ -31,9 +31,15 @@ export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
 
 export type LeaderboardSource = 'global' | 'local';
 
+export interface SubmitScoreResult {
+  target: ScoreSaveTarget;
+  saved: boolean;
+}
+
 export interface LeaderboardFetchResult {
   entries: LeaderboardEntry[];
   source: LeaderboardSource;
+  viewerEntry?: LeaderboardEntry | null;
 }
 
 const LOCAL_KEY = 'mimu_leaderboard';
@@ -273,52 +279,67 @@ export function onAuthChange(callback: (user: User | null) => void): (() => void
   return null;
 }
 
-export async function submitScore(entry: LeaderboardEntry): Promise<ScoreSaveTarget> {
-  let savedTo: ScoreSaveTarget = 'local';
+export async function submitScore(entry: LeaderboardEntry): Promise<SubmitScoreResult> {
+  let apiSaved = false;
 
   try {
     const apiResult = await submitScoreToApi(entry);
-    if (apiResult.ok && apiResult.configured !== false) {
-      savedTo = 'api';
-    }
+    apiSaved = !!(apiResult.ok && apiResult.configured !== false && apiResult.saved);
   } catch {
-    // Fall through to Firebase / local storage.
+    // Try Firebase / local storage.
   }
 
+  let firebaseSaved = false;
   if (initFirebase() && auth?.currentUser && db) {
     try {
       const ref = doc(db, 'leaderboard', entry.userId);
       const existing = await getDoc(ref);
-      if (existing.exists()) {
-        const prev = existing.data() as LeaderboardEntry;
-        if (prev.score >= entry.score) {
-          return savedTo === 'local' ? 'firebase' : savedTo;
-        }
+      const prevScore = existing.exists() ? (existing.data() as LeaderboardEntry).score : -1;
+      if (entry.score > prevScore) {
+        await setDoc(ref, entry);
+        firebaseSaved = true;
       }
-      await setDoc(ref, entry);
-      if (savedTo === 'local') {
-        savedTo = 'firebase';
-      }
-      return savedTo;
     } catch {
-      // Fall through to local storage.
+      // Try local storage.
     }
   }
 
-  if (savedTo !== 'local') {
-    return savedTo;
-  }
-
+  let localSaved = false;
   const board = getLocalLeaderboard();
-  const prev = board.find((row) => row.userId === entry.userId);
-  if (prev && prev.score >= entry.score) {
-    return 'local';
+  const prevLocal = board.find((row) => row.userId === entry.userId);
+  if (!prevLocal || entry.score > prevLocal.score) {
+    const next = board.filter((row) => row.userId !== entry.userId);
+    next.push(entry);
+    saveLocalLeaderboard(dedupeLeaderboardEntries(next));
+    localSaved = true;
   }
 
-  const next = board.filter((row) => row.userId !== entry.userId);
-  next.push(entry);
-  saveLocalLeaderboard(dedupeLeaderboardEntries(next));
-  return 'local';
+  const saved = apiSaved || firebaseSaved || localSaved;
+  if (apiSaved) return { target: 'api', saved };
+  if (firebaseSaved) return { target: 'firebase', saved };
+  if (localSaved) return { target: 'local', saved };
+  return { target: 'local', saved };
+}
+
+async function fetchPersonalBestEntry(userId: string): Promise<LeaderboardEntry | null> {
+  const candidates: LeaderboardEntry[] = [];
+
+  const local = getLocalLeaderboard().find((row) => row.userId === userId);
+  if (local) candidates.push(local);
+
+  if (initFirebase() && db) {
+    try {
+      const snap = await getDoc(doc(db, 'leaderboard', userId));
+      if (snap.exists()) {
+        candidates.push(snap.data() as LeaderboardEntry);
+      }
+    } catch {
+      // Fall through.
+    }
+  }
+
+  if (candidates.length === 0) return null;
+  return dedupeLeaderboardEntries(candidates)[0] ?? null;
 }
 
 export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
@@ -350,16 +371,30 @@ export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
     }
   }
 
+  const user = getCurrentUser();
+  let viewerEntry: LeaderboardEntry | null = null;
+  if (user) {
+    viewerEntry = await fetchPersonalBestEntry(user.userId);
+    if (viewerEntry) {
+      const existing = collected.find((row) => row.userId === user.userId);
+      if (!existing || viewerEntry.score > existing.score) {
+        collected.push(viewerEntry);
+      }
+    }
+  }
+
   if (global) {
     return {
       entries: dedupeLeaderboardEntries(collected).slice(0, LEADERBOARD_LIMIT),
       source: 'global',
+      viewerEntry,
     };
   }
 
   return {
     entries: dedupeLeaderboardEntries(getLocalLeaderboard()).slice(0, LEADERBOARD_LIMIT),
     source: 'local',
+    viewerEntry,
   };
 }
 

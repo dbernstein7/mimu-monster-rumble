@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { getCharacter } from '../config/characters';
 import { getLevel } from '../config/levels';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
-import { getCurrentUser, submitScore, type ScoreSaveTarget } from '../services/firebase';
+import { getCurrentUser, submitScore, type SubmitScoreResult } from '../services/firebase';
 import { bankRunCoins } from '../services/userProfile';
 import {
   addPanelBorder,
@@ -235,7 +235,7 @@ export default class GameOverScene extends Phaser.Scene {
         }
       }
 
-      const target = await submitScore({
+      const scoreResult = await submitScore({
         userId: user.userId,
         username: user.username,
         score,
@@ -244,7 +244,7 @@ export default class GameOverScene extends Phaser.Scene {
         level: levelName,
         timestamp: Date.now(),
       });
-      parts.push(scoreSaveMessage(target));
+      parts.push(scoreSaveMessage(scoreResult));
       statusText.setText(parts.join('  ·  '));
     } catch {
       statusText.setText(parts.length ? parts.join('  ·  ') : 'Could not save run — try again');
@@ -276,8 +276,11 @@ export default class GameOverScene extends Phaser.Scene {
   }
 }
 
-function scoreSaveMessage(target: ScoreSaveTarget): string {
-  switch (target) {
+function scoreSaveMessage(result: SubmitScoreResult): string {
+  if (!result.saved) {
+    return 'High score unchanged — already on the board';
+  }
+  switch (result.target) {
     case 'firebase':
       return 'Score saved to cloud leaderboard';
     case 'api':

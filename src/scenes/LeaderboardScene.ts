@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { fetchCoinLeaderboard, fetchLeaderboard, isFirebaseEnabled } from '../services/firebase';
+import {
+  fetchCoinLeaderboard,
+  fetchLeaderboard,
+  getCurrentUser,
+  isFirebaseEnabled,
+} from '../services/firebase';
 import { loadUserProfile } from '../services/userProfile';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
@@ -219,10 +224,16 @@ export default class LeaderboardScene extends Phaser.Scene {
       .setDepth(6);
 
     if (this.activeTab === 'scores') {
-      const { entries, source } = await fetchLeaderboard();
-      this.statusText?.setText(
-        source === 'global' ? 'Live global scores' : 'Showing scores saved on this device',
-      );
+      const { entries, source, viewerEntry } = await fetchLeaderboard();
+      let status =
+        source === 'global' ? 'Live global scores' : 'Showing scores saved on this device';
+      if (viewerEntry && getCurrentUser()) {
+        const onBoard = entries.some((row) => row.userId === viewerEntry.userId);
+        status += onBoard
+          ? `  ·  Your best: ${formatScore(viewerEntry.score)}`
+          : `  ·  Your best: ${formatScore(viewerEntry.score)} (outside top ${this.layout.maxRows})`;
+      }
+      this.statusText?.setText(status);
       this.loadingText?.destroy();
       this.loadingText = undefined;
 
