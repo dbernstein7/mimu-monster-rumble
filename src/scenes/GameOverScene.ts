@@ -32,7 +32,7 @@ import {
   MAIN_MENU_SCENE_KEY,
   startSceneNextTick,
 } from '../utils/sceneNav';
-import { destroyGameOverOverlay } from '../ui/gameOverOverlay';
+import { destroyGameOverOverlay, mountGameOverNav } from '../ui/gameOverOverlay';
 
 /** Score summary panel — same border treatment as leaderboard / account. */
 const GAME_OVER_PANEL = {
@@ -74,9 +74,15 @@ function formatRunMimuLine(mimu1: CharacterId | undefined, mimu2: CharacterId): 
 
 export default class GameOverScene extends Phaser.Scene {
   private leaving = false;
+  private saveToken = 0;
 
   constructor() {
     super({ key: 'GameOverScene' });
+  }
+
+  init(): void {
+    this.leaving = false;
+    this.saveToken += 1;
   }
 
   create(data: {
@@ -126,17 +132,18 @@ export default class GameOverScene extends Phaser.Scene {
     );
 
     this.add
+      .text(GAME_WIDTH / 2, layout.finalScoreY, 'FINAL SCORE', subtitleStyle('12px'))
+      .setOrigin(0.5);
+
+    this.add
       .text(GAME_WIDTH / 2, layout.scoreY, formatScore(score), {
         ...valueStyle('40px', won ? '#ffc857' : '#f5f0ff'),
         fontFamily: UI_FONTS.title,
       })
       .setOrigin(0.5);
-    this.add
-      .text(GAME_WIDTH / 2, layout.finalScoreY, 'FINAL SCORE', subtitleStyle('12px'))
-      .setOrigin(0.5);
 
     this.add
-      .text(GAME_WIDTH / 2, layout.coinsY, `◎ ${formatScore(coins)} coins this run`, {
+      .text(GAME_WIDTH / 2, layout.coinsY, `${formatScore(coins)} coins this run`, {
         fontFamily: UI_FONTS.body,
         fontSize: '20px',
         color: '#ffd166',
@@ -151,15 +158,19 @@ export default class GameOverScene extends Phaser.Scene {
     const statusText = this.add
       .text(GAME_WIDTH / 2, layout.statusY, 'Saving run...', {
         fontFamily: UI_FONTS.body,
-        fontSize: '14px',
+        fontSize: '13px',
         color: '#5dffe0',
         fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: GAME_OVER_PANEL.width - 48 },
       })
-      .setOrigin(0.5);
+      .setOrigin(0.5, 0.5);
 
+    const saveToken = this.saveToken;
     const user = getCurrentUser();
     if (user) {
       void this.saveRunResults(
+        saveToken,
         statusText,
         score,
         coins,
@@ -183,6 +194,7 @@ export default class GameOverScene extends Phaser.Scene {
     const leaderboardY = won ? NAV_BUTTON_Y.first : NAV_BUTTON_Y.second;
     const mainMenuY = won ? NAV_BUTTON_Y.second : NAV_BUTTON_Y.first;
     const cx = GAME_WIDTH / 2;
+    const depth = 40;
 
     if (hasLeaderboardButtonTexture(this)) {
       createImageMenuButton(
@@ -192,6 +204,10 @@ export default class GameOverScene extends Phaser.Scene {
         LEADERBOARD_BUTTON_TEXTURE_KEY,
         MENU_BUTTON_DISPLAY_WIDTH,
         () => this.goToLeaderboard(),
+        depth,
+        0.9,
+        1,
+        false,
       );
     } else {
       createStyledButton(this, cx, leaderboardY, 'LEADERBOARD', () => this.goToLeaderboard());
@@ -205,13 +221,40 @@ export default class GameOverScene extends Phaser.Scene {
         MAIN_MENU_BUTTON_TEXTURE_KEY,
         MENU_BUTTON_DISPLAY_WIDTH,
         () => this.goToMainMenu(),
+        depth,
+        0.9,
+        1,
+        false,
       );
     } else {
       createStyledButton(this, cx, mainMenuY, 'MAIN MENU', () => this.goToMainMenu());
     }
+
+    if (hasLeaderboardButtonTexture(this) && hasMainMenuButtonTexture(this)) {
+      mountGameOverNav(this, {
+        won,
+        hitTargetsOnly: true,
+        onMainMenu: () => this.goToMainMenu(),
+        onLeaderboard: () => this.goToLeaderboard(),
+      });
+    }
+  }
+
+  private leaveToScene(sceneKey: string, data?: object): void {
+    if (this.leaving) return;
+    this.leaving = true;
+    this.saveToken += 1;
+    destroyGameOverOverlay();
+    this.input.resetPointers();
+    if (sceneKey === MAIN_MENU_SCENE_KEY) {
+      resetRunState(this.registry);
+    }
+    focusGameSurface();
+    startSceneNextTick(this.game, sceneKey, data, 50);
   }
 
   private async saveRunResults(
+    saveToken: number,
     statusText: Phaser.GameObjects.Text,
     score: number,
     coins: number,
@@ -219,28 +262,36 @@ export default class GameOverScene extends Phaser.Scene {
     character2Name: string | undefined,
     levelName: string,
   ): Promise<void> {
-    const parts: string[] = [];
+    const applyStatus = (text: string, color = '#5dffe0'): void => {
+      if (saveToken !== this.saveToken || !this.scene.isActive() || !statusText.active) return;
+      statusText.setText(text);
+      statusText.setColor(color);
+    };
+
+    const lines: string[] = [];
 
     try {
       await waitForAuthReady();
+      if (saveToken !== this.saveToken) return;
+
       const user = getCurrentUser();
       if (!user) {
-        statusText.setText('Sign in to bank coins and save scores');
-        statusText.setColor('#a89bc4');
+        applyStatus('Sign in to bank coins and save scores', '#a89bc4');
         return;
       }
 
       await loadUserProfile();
+      if (saveToken !== this.saveToken) return;
+
       const username = getCachedProfile()?.username ?? user.username;
 
       if (coins > 0) {
         const bank = await bankRunCoins(coins);
+        if (saveToken !== this.saveToken) return;
         if (bank.banked > 0) {
-          parts.push(
-            `Banked ${formatScore(bank.banked)} coins · Wallet ${formatScore(bank.totalCoins)}`,
-          );
-        } else if (coins > 0) {
-          parts.push(`Could not bank ${formatScore(coins)} coins — try again`);
+          lines.push(`Banked ${formatScore(bank.banked)} coins`);
+        } else {
+          lines.push(`Could not bank ${formatScore(coins)} coins`);
         }
       }
 
@@ -254,35 +305,24 @@ export default class GameOverScene extends Phaser.Scene {
           level: levelName,
           timestamp: Date.now(),
         });
-        parts.push(scoreSaveMessage(scoreResult));
+        if (saveToken !== this.saveToken) return;
+        lines.push(scoreSaveMessage(scoreResult));
       }
 
-      statusText.setText(parts.length ? parts.join('  ·  ') : 'Run saved');
+      applyStatus(lines.length ? lines.join('\n') : 'Run saved');
     } catch {
-      statusText.setText(parts.length ? parts.join('  ·  ') : 'Could not save run — try again');
-      statusText.setColor('#ff4757');
+      applyStatus(lines.length ? lines.join('\n') : 'Could not save run — try again', '#ff4757');
     }
   }
 
   private goToMainMenu(): void {
-    if (this.leaving) return;
-    this.leaving = true;
-
-    resetRunState(this.registry);
-    destroyGameOverOverlay();
-    this.input.resetPointers();
-    startSceneNextTick(this.game, MAIN_MENU_SCENE_KEY, {
+    this.leaveToScene(MAIN_MENU_SCENE_KEY, {
       menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
     });
   }
 
   private goToLeaderboard(): void {
-    if (this.leaving) return;
-    this.leaving = true;
-
-    destroyGameOverOverlay();
-    this.input.resetPointers();
-    startSceneNextTick(this.game, 'LeaderboardScene');
+    this.leaveToScene('LeaderboardScene');
   }
 }
 

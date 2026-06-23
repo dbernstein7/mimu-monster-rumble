@@ -20,7 +20,7 @@ import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
-import { MAIN_MENU_INPUT_GUARD_MS, startSceneNextTick } from '../utils/sceneNav';
+import { MAIN_MENU_INPUT_GUARD_MS, startSceneNextTick, GAME_OVER_SCENE_KEY } from '../utils/sceneNav';
 import { getCurrentUser, submitScore, waitForAuthReady } from '../services/firebase';
 import { bankRunCoins, getCachedProfile, loadUserProfile } from '../services/userProfile';
 import { RUN_MIMU1_KEY } from '../utils/runState';
@@ -881,17 +881,13 @@ export default class GameScene extends Phaser.Scene {
       won: true as const,
     };
 
-    const launchVictory = (): void => {
-      startSceneNextTick(this.game, 'GameOverScene', payload, 16);
-    };
-
-    launchVictory();
+    startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, 16);
     this.victoryRealtimeSafety = window.setTimeout(() => {
       this.victoryRealtimeSafety = undefined;
-      if (this.scene.isActive()) {
-        startSceneNextTick(this.game, 'GameOverScene', payload, 0);
+      if (!this.game.scene.isActive(GAME_OVER_SCENE_KEY)) {
+        startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, 0);
       }
-    }, 600);
+    }, 500);
   }
 
   private revealExitFloor(): void {
@@ -1007,7 +1003,7 @@ export default class GameScene extends Phaser.Scene {
     this.abilitySystem.cancelActiveEffects(this.player);
     this.mobileControls?.setEnabled(false);
 
-    startSceneNextTick(this.game, 'GameOverScene', {
+    startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, {
       score: this.player.score,
       coins: this.player.coins,
       characterId: this.characterId,

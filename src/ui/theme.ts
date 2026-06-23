@@ -215,6 +215,7 @@ export function createImageMenuButton(
   depth = 50,
   idleAlpha = 0.9,
   highlightAlpha = 1,
+  interactive = true,
 ): ImageMenuButton {
   const image = scene.add.image(x, y, textureKey).setOrigin(0.5).setDepth(depth);
   const baseScale = displayWidth / image.width;
@@ -222,8 +223,7 @@ export function createImageMenuButton(
 
   const hit = scene.add
     .rectangle(x, y, image.displayWidth, image.displayHeight, 0x000000, 0.001)
-    .setDepth(depth + 1)
-    .setInteractive({ useHandCursor: true });
+    .setDepth(depth + 1);
 
   const setHighlighted = (on: boolean) => {
     image.setScale(baseScale * (on ? 1.04 : 1));
@@ -232,7 +232,14 @@ export function createImageMenuButton(
   };
   setHighlighted(false);
 
-  hit.on('pointerdown', onClick);
+  if (interactive) {
+    hit.setInteractive({ useHandCursor: true });
+    hit.on('pointerover', () => setHighlighted(true));
+    hit.on('pointerout', () => setHighlighted(false));
+    hit.on('pointerdown', onClick);
+  } else {
+    hit.setVisible(false);
+  }
 
   return { image, hit, setHighlighted };
 }

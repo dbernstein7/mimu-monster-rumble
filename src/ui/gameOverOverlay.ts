@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { MENU_BUTTON_DISPLAY_WIDTH } from '../assets/uiAssets';
 import { GAME_WIDTH } from '../config/gameConstants';
 import {
   bindSceneOverlayPosition,
@@ -63,6 +64,14 @@ function ensureStyles(): void {
       min-width: 200px;
       padding: 0.85rem 1.25rem;
     }
+    .${BTN_CLASS}.hit-target {
+      opacity: 0.01;
+      background: transparent;
+      border: none;
+      padding: 0;
+      min-width: ${MENU_BUTTON_DISPLAY_WIDTH}px;
+      min-height: 58px;
+    }
   `;
   document.head.appendChild(style);
 }
@@ -79,6 +88,8 @@ export function mountGameOverNav(
     won: boolean;
     onMainMenu: () => void;
     onLeaderboard: () => void;
+    /** Transparent HTML hit targets over Phaser button art (fullscreen-safe). */
+    hitTargetsOnly?: boolean;
   },
 ): void {
   destroyGameOverOverlay();
@@ -100,8 +111,16 @@ export function mountGameOverNav(
   ): HTMLButtonElement => {
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = primary ? `${BTN_CLASS} primary` : BTN_CLASS;
-    btn.textContent = label;
+    const hitOnly = options.hitTargetsOnly === true;
+    btn.className = hitOnly
+      ? `${BTN_CLASS} hit-target`
+      : primary
+        ? `${BTN_CLASS} primary`
+        : BTN_CLASS;
+    btn.textContent = hitOnly ? '' : label;
+    if (hitOnly) {
+      btn.setAttribute('aria-label', label);
+    }
 
     const handle = (event: Event): void => {
       event.preventDefault();

@@ -42,6 +42,14 @@ function releaseStuckPointers(game: Phaser.Game): void {
   }
 }
 
+function stopScenesExcept(game: Phaser.Game, keepKey: string): void {
+  for (const scene of game.scene.scenes) {
+    if (scene.scene.key !== keepKey && scene.scene.isActive()) {
+      scene.scene.stop();
+    }
+  }
+}
+
 /**
  * Defer scene.start so Phaser finishes the pointer event before the
  * current scene shuts down. scene.time.delayedCall is cancelled on shutdown.
@@ -64,6 +72,7 @@ export function startSceneNextTick(
   focusGameSurface();
   window.setTimeout(() => {
     releaseStuckPointers(game);
+    stopScenesExcept(game, key);
     game.scene.start(key, data);
   }, delayMs);
 }
