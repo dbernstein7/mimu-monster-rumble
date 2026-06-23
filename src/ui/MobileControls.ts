@@ -236,6 +236,12 @@ export class MobileControls {
     }
   }
 
+  /** Mobile: hide touch chrome during boss exit so it cannot steal the transition. */
+  setOverlayVisible(visible: boolean): void {
+    if (!isMobileTouchDevice()) return;
+    this.container.setVisible(visible);
+  }
+
   getMovement(): { x: number; y: number } {
     const len = Math.hypot(this.stickX, this.stickY);
     if (len < JOYSTICK_DEADZONE) return { x: 0, y: 0 };

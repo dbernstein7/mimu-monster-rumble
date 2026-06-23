@@ -51,6 +51,34 @@ function stopScenesExcept(game: Phaser.Game, keepKey: string): void {
   }
 }
 
+function clearOverlaysForScene(key: string): void {
+  if (key !== AUTH_SCENE_KEY) {
+    destroyAuthFormOverlay();
+  }
+  if (key !== CHARACTER_SELECT_SCENE_KEY) {
+    destroyCharacterSelectOverlay();
+  }
+  if (key !== GAME_OVER_SCENE_KEY) {
+    destroyGameOverOverlay();
+  }
+}
+
+/** Immediate scene handoff (used when deferred timers fail on mobile). */
+export function launchSceneNow(
+  game: Phaser.Game,
+  key: string,
+  data?: object,
+): void {
+  clearOverlaysForScene(key);
+  focusGameSurface();
+  if (isMobileTouchDevice()) {
+    prepareMobileSceneHandoff(game);
+  }
+  releaseStuckPointers(game);
+  stopScenesExcept(game, key);
+  game.scene.start(key, data);
+}
+
 /**
  * Defer scene.start so Phaser finishes the pointer event before the
  * current scene shuts down. scene.time.delayedCall is cancelled on shutdown.
@@ -61,15 +89,7 @@ export function startSceneNextTick(
   data?: object,
   delayMs = 0,
 ): void {
-  if (key !== AUTH_SCENE_KEY) {
-    destroyAuthFormOverlay();
-  }
-  if (key !== CHARACTER_SELECT_SCENE_KEY) {
-    destroyCharacterSelectOverlay();
-  }
-  if (key !== GAME_OVER_SCENE_KEY) {
-    destroyGameOverOverlay();
-  }
+  clearOverlaysForScene(key);
   focusGameSurface();
   window.setTimeout(() => {
     if (isMobileTouchDevice()) {
