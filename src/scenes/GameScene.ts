@@ -29,14 +29,13 @@ import {
   launchSceneNow,
 } from '../utils/sceneNav';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
-import { dismissControlsModal } from '../ui/controlsOverlay';
+import { dismissControlsModal, isControlsModalOpen, mountControlsButton } from '../ui/controlsOverlay';
 import { getCurrentUser, submitScore, waitForAuthReady } from '../services/firebase';
 import { bankRunCoins, getCachedProfile, loadUserProfile } from '../services/userProfile';
 import { RUN_MIMU1_KEY } from '../utils/runState';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
 import { getFullscreenButtonBottomRightPosition, mountFullscreenButton, drawPanel, UI_FONTS } from '../ui/theme';
-import { mountControlsButton } from '../ui/controlsOverlay';
 import { createPanelBorderImage, hasLeaderboardBorderTexture } from '../assets/uiAssets';
 import { getEnemySpriteConfig } from '../config/enemySprites';
 import {
@@ -146,6 +145,10 @@ export default class GameScene extends Phaser.Scene {
   private mobileBossExitForceTimer?: number;
   private readonly realtimeTimers = new Set<number>();
   private waveGapScheduledAt = 0;
+  private mobileWallClockLastMs = 0;
+  private mobileDashStuckSinceMs = 0;
+  private mobileWaveTimerWatchMs = 0;
+  private mobileWaveTimerLastValue = -1;
   private bossMusic?: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
   private bossMusicVolumeTween?: Phaser.Tweens.Tween;
   private levelMusic?: LevelMusicHandle;
@@ -167,6 +170,10 @@ export default class GameScene extends Phaser.Scene {
     this.nextLevelHandoffStarted = false;
     this.clearAllRealtimeTimers();
     this.clearMobileExitRaf();
+    this.mobileWallClockLastMs = 0;
+    this.mobileDashStuckSinceMs = 0;
+    this.mobileWaveTimerWatchMs = 0;
+    this.mobileWaveTimerLastValue = -1;
     this.registry.set('characterId', this.characterId);
     this.registry.set('levelIndex', this.levelIndex);
   }
@@ -282,6 +289,18 @@ export default class GameScene extends Phaser.Scene {
     this.spawnWave();
     this.startLevelMusic();
     onGameAudioUnlocked(() => this.ensureLevelMusicPlaying(), this);
+
+    if (isMobileTouchDevice()) {
+      const onVisible = (): void => {
+        if (document.hidden) return;
+        this.mobileWallClockLastMs = 0;
+        this.forceGameplayClockRunning();
+      };
+      document.addEventListener('visibilitychange', onVisible);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+        document.removeEventListener('visibilitychange', onVisible);
+      });
+    }
   }
 
   private levelMusicTrackKeys(): string[] {
@@ -503,6 +522,10 @@ export default class GameScene extends Phaser.Scene {
     this.exitingToMenu = false;
     this.exitGateTarget = undefined;
     this.waveGapScheduledAt = 0;
+    this.mobileWallClockLastMs = 0;
+    this.mobileDashStuckSinceMs = 0;
+    this.mobileWaveTimerWatchMs = 0;
+    this.mobileWaveTimerLastValue = -1;
   }
 
   /** Wall-clock timers — survive Phaser timeScale stalls on mobile WebKit. */
@@ -529,26 +552,94 @@ export default class GameScene extends Phaser.Scene {
 
   private ensureMobileGameplayClock(): void {
     if (!isMobileTouchDevice()) return;
-    if (this.exitingToMenu || this.gameEnding) return;
-    if (this.levelExitActive || this.levelTransitioning) return;
-
-    if (this.paused && !this.pauseOverlay.visible) {
-      this.setPaused(false, { silent: true });
-      return;
-    }
-
-    if (!this.paused && this.time.timeScale === 0) {
-      this.time.timeScale = 1;
-      this.physics.resume();
-      this.tweens.resumeAll();
-      this.levelMusic?.resume();
-      this.abilitySystem.pauseExplosionSfx(false);
-      this.playerWalkingSfx.setPaused(false);
-      setCombatSfxPaused(this, false);
-      this.mobileControls?.setEnabled(true);
-    }
-
     this.ensureMobileWaveProgress();
+  }
+
+  /**
+   * Mobile WebKit can keep audio playing while Phaser delta / timeScale stall mid-wave.
+   * Recover silent pauses, spurious exit flags, dead touch controls, and stuck dashes.
+   */
+  private recoverMobileGameplayState(): void {
+    if (!isMobileTouchDevice()) return;
+    if (this.exitingToMenu || this.gameEnding) return;
+
+    if (this.levelExitActive && !this.exitGateTarget && !this.levelTransitioning) {
+      this.levelExitActive = false;
+      this.clearMobileExitRaf();
+      this.clearLevelExitRealtimeSafety();
+      this.clearMobileBossExitForceComplete();
+    }
+
+    const intentionalPause = this.paused && this.pauseOverlay.visible;
+    if (!intentionalPause) {
+      if (this.paused) {
+        this.setPaused(false, { silent: true });
+      } else if (this.time.timeScale === 0 || this.physics.world.isPaused) {
+        this.time.timeScale = 1;
+        this.physics.resume();
+        this.tweens.resumeAll();
+        this.levelMusic?.resume();
+        this.abilitySystem?.pauseExplosionSfx(false);
+        this.playerWalkingSfx?.setPaused(false);
+        setCombatSfxPaused(this, false);
+      }
+    }
+
+    if (
+      this.mobileControls &&
+      !this.mobileControls.isActive() &&
+      !intentionalPause &&
+      !this.levelExitActive &&
+      !this.levelTransitioning &&
+      !isControlsModalOpen(this)
+    ) {
+      this.mobileControls.setEnabled(true);
+    }
+
+    if (this.player?.isDashing) {
+      const now = performance.now();
+      if (this.mobileDashStuckSinceMs <= 0) {
+        this.mobileDashStuckSinceMs = now;
+      } else if (now - this.mobileDashStuckSinceMs > 900) {
+        this.abilitySystem?.cancelActiveEffects(this.player);
+        this.mobileDashStuckSinceMs = 0;
+      }
+    } else {
+      this.mobileDashStuckSinceMs = 0;
+    }
+
+    if (this.waveManager?.waveActive && !intentionalPause && !this.levelExitActive && !this.levelTransitioning) {
+      const now = performance.now();
+      const timer = this.waveManager.waveTimer;
+      if (this.mobileWaveTimerLastValue < 0 || Math.abs(timer - this.mobileWaveTimerLastValue) > 0.02) {
+        this.mobileWaveTimerLastValue = timer;
+        this.mobileWaveTimerWatchMs = now;
+      } else if (this.mobileWaveTimerWatchMs > 0 && now - this.mobileWaveTimerWatchMs > 1200) {
+        this.forceGameplayClockRunning();
+        this.waveManager.update(0.034);
+        this.mobileWaveTimerLastValue = this.waveManager.waveTimer;
+        this.mobileWaveTimerWatchMs = now;
+      }
+    } else {
+      this.mobileWaveTimerLastValue = -1;
+      this.mobileWaveTimerWatchMs = 0;
+    }
+  }
+
+  /** Wall-clock step — Phaser delta can be 0 while audio still plays on mobile. */
+  private getMobileStepDelta(phaserDelta: number): number {
+    const now = performance.now();
+    if (this.mobileWallClockLastMs <= 0) {
+      this.mobileWallClockLastMs = now;
+      return Math.max(phaserDelta, 16);
+    }
+
+    const wall = Math.min(50, Math.max(1, now - this.mobileWallClockLastMs));
+    this.mobileWallClockLastMs = now;
+
+    if (this.paused && this.pauseOverlay.visible) return 0;
+    if (phaserDelta <= 0 || this.time.timeScale === 0) return wall;
+    return phaserDelta;
   }
 
   /** Recover if inter-wave spawn timer never fired (Phaser clock stall on mobile). */
@@ -961,11 +1052,22 @@ export default class GameScene extends Phaser.Scene {
   update(_time: number, delta: number): void {
     if (this.exitingToMenu) return;
 
+    if (isMobileTouchDevice()) {
+      this.recoverMobileGameplayState();
+    }
     this.ensureMobileGameplayClock();
+
+    const stepDelta = isMobileTouchDevice() ? this.getMobileStepDelta(delta) : delta;
+
     this.inputManager.update();
 
-    if (this.levelExitActive && !this.levelTransitioning && !this.gameEnding) {
-      this.updateLevelExit(delta);
+    if (
+      this.levelExitActive &&
+      this.exitGateTarget &&
+      !this.levelTransitioning &&
+      !this.gameEnding
+    ) {
+      this.updateLevelExit(stepDelta);
       return;
     }
 
@@ -997,14 +1099,14 @@ export default class GameScene extends Phaser.Scene {
       this.secondaryProjectileSystem.fire(this.player, movement);
     }
 
-    this.contactTimer -= delta;
-    this.confusedBumpTimer -= delta;
+    this.contactTimer -= stepDelta;
+    this.confusedBumpTimer -= stepDelta;
     this.player.updateMovement(movement);
     if (this.player.isDashing) {
       this.player.updateVisuals(movement);
     }
     this.playerWalkingSfx.update(this.player, movement, true);
-    this.waveManager.update(delta / 1000);
+    this.waveManager.update(stepDelta / 1000);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
 
     this.enemies.getChildren().forEach((e) => {
@@ -1014,11 +1116,11 @@ export default class GameScene extends Phaser.Scene {
       this.clampEntity(enemy);
     });
 
-    this.resolveConfusedEnemyCombat(delta);
+    this.resolveConfusedEnemyCombat(stepDelta);
 
     this.clampEntity(this.player);
 
-    this.applyCombatDamage(delta);
+    this.applyCombatDamage(stepDelta);
 
     this.secondaryProjectileSystem.update(this.enemies);
 

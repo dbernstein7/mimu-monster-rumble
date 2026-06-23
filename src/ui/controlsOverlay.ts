@@ -58,6 +58,11 @@ export interface ControlsButtonOptions {
 }
 
 const modalByScene = new WeakMap<Phaser.Scene, Phaser.GameObjects.Container>();
+const onCloseByScene = new WeakMap<Phaser.Scene, () => void>();
+
+export function isControlsModalOpen(scene: Phaser.Scene): boolean {
+  return modalByScene.has(scene);
+}
 
 /** Bottom-left of the 1280×720 playfield — same on desktop and mobile. */
 export function getControlsButtonPosition(_scene?: Phaser.Scene): { x: number; y: number } {
@@ -179,6 +184,10 @@ export function mountControlsButton(
 
   const depth = options.depth ?? (isMobileTouchDevice() ? 950 : BUTTON_DEPTH);
 
+  if (options.onClose) {
+    onCloseByScene.set(scene, options.onClose);
+  }
+
   const button = createIconButton(
     scene,
     0,
@@ -211,6 +220,7 @@ export function mountControlsButton(
 
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     closeControlsModal(scene);
+    onCloseByScene.delete(scene);
     button.destroy();
   });
 
@@ -219,5 +229,10 @@ export function mountControlsButton(
 
 /** Close controls panel if open — e.g. before boss exit so nothing blocks the scene. */
 export function dismissControlsModal(scene: Phaser.Scene): void {
+  const wasOpen = modalByScene.has(scene);
+  const onClose = onCloseByScene.get(scene);
   closeControlsModal(scene);
+  if (wasOpen) {
+    onClose?.();
+  }
 }
