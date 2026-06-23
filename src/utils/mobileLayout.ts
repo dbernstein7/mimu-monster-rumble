@@ -101,11 +101,15 @@ export function bindSceneOverlayPosition(scene: Phaser.Scene, sync: () => void):
   run();
   requestAnimationFrame(run);
   scene.scale.on('resize', run);
+  scene.scale.on('enterfullscreen', run);
+  scene.scale.on('leavefullscreen', run);
   window.addEventListener('resize', run);
   window.addEventListener('orientationchange', run);
 
   return () => {
     scene.scale.off('resize', run);
+    scene.scale.off('enterfullscreen', run);
+    scene.scale.off('leavefullscreen', run);
     window.removeEventListener('resize', run);
     window.removeEventListener('orientationchange', run);
   };

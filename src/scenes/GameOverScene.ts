@@ -30,6 +30,7 @@ import {
   focusGameSurface,
   MAIN_MENU_INPUT_GUARD_MS,
   MAIN_MENU_SCENE_KEY,
+  startSceneNextTick,
 } from '../utils/sceneNav';
 import { destroyGameOverOverlay } from '../ui/gameOverOverlay';
 
@@ -88,6 +89,7 @@ export default class GameOverScene extends Phaser.Scene {
   }): void {
     this.leaving = false;
     destroyGameOverOverlay();
+    focusGameSurface();
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();
 
@@ -268,9 +270,8 @@ export default class GameOverScene extends Phaser.Scene {
 
     resetRunState(this.registry);
     destroyGameOverOverlay();
-    focusGameSurface();
     this.input.resetPointers();
-    this.scene.start(MAIN_MENU_SCENE_KEY, {
+    startSceneNextTick(this.game, MAIN_MENU_SCENE_KEY, {
       menuInputDelayMs: MAIN_MENU_INPUT_GUARD_MS,
     });
   }
@@ -280,9 +281,8 @@ export default class GameOverScene extends Phaser.Scene {
     this.leaving = true;
 
     destroyGameOverOverlay();
-    focusGameSurface();
     this.input.resetPointers();
-    this.scene.start('LeaderboardScene');
+    startSceneNextTick(this.game, 'LeaderboardScene');
   }
 }
 

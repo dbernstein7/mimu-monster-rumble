@@ -24,6 +24,10 @@ function ensureStyles(): void {
       pointer-events: none;
       z-index: 10000;
     }
+    #game-container .${SHELL_CLASS} {
+      position: absolute;
+      inset: 0;
+    }
     .${BTN_CLASS} {
       position: fixed;
       pointer-events: auto;
@@ -120,7 +124,8 @@ export function mountGameOverNav(
     makeBtn('LEADERBOARD', 560, false, options.onLeaderboard);
   }
 
-  document.body.appendChild(shell);
+  const container = document.getElementById('game-container') ?? document.body;
+  container.appendChild(shell);
 
   const syncPosition = (): void => {
     if (!shell.isConnected) return;
