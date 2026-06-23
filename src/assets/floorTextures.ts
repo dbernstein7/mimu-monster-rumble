@@ -27,15 +27,21 @@ export function getFloorTextureKey(levelId: LevelId | string, variant: FloorVari
 
 export function loadFloorTextures(scene: Phaser.Scene): void {
   (['hauntedCarnival', 'mutatedArena'] as LevelId[]).forEach((levelId) => {
-    const playUrl = FLOOR_TEXTURE_URLS[levelId];
-    const exitUrl = FLOOR_TEXTURE_URLS[`${levelId}_exit`];
-    if (playUrl) {
-      scene.load.image(getFloorTextureKey(levelId, 'play'), playUrl);
-    }
-    if (exitUrl) {
-      scene.load.image(getFloorTextureKey(levelId, 'exit'), exitUrl);
-    }
+    loadFloorTexturesForLevel(scene, levelId);
   });
+}
+
+export function loadFloorTexturesForLevel(scene: Phaser.Scene, levelId: LevelId): void {
+  const playUrl = FLOOR_TEXTURE_URLS[levelId];
+  const exitUrl = FLOOR_TEXTURE_URLS[`${levelId}_exit`];
+  const playKey = getFloorTextureKey(levelId, 'play');
+  const exitKey = getFloorTextureKey(levelId, 'exit');
+  if (playUrl && !scene.textures.exists(playKey)) {
+    scene.load.image(playKey, playUrl);
+  }
+  if (exitUrl && !scene.textures.exists(exitKey)) {
+    scene.load.image(exitKey, exitUrl);
+  }
 }
 
 export function hasFloorTexture(

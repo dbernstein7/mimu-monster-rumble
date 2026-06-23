@@ -46,8 +46,9 @@ export function getCharacterSelectCardKey(id: CharacterId): string {
 export function loadCharacterSelectCards(scene: Phaser.Scene): void {
   (Object.keys(CARD_URLS) as CharacterId[]).forEach((id) => {
     const url = CARD_URLS[id];
-    if (url) {
-      scene.load.image(getCharacterSelectCardKey(id), url);
+    const key = getCharacterSelectCardKey(id);
+    if (url && !scene.textures.exists(key)) {
+      scene.load.image(key, url);
     }
   });
 }

@@ -6,6 +6,7 @@ import {
   waitForAuthReady,
 } from '../services/firebase';
 import { loadUserProfile } from '../services/userProfile';
+import { startDeferredAssetLoad } from '../assets/stagedLoading';
 import { InputManager } from '../input/InputManager';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import {
@@ -115,6 +116,7 @@ export default class MainMenuScene extends Phaser.Scene {
     focusGameSurface();
     this.input.resetPointers();
     this.silenceGameplayAudio();
+    void startDeferredAssetLoad(this.game);
 
     this.inputManager = new InputManager(this);
     this.menuItems = [];

@@ -202,39 +202,36 @@ export const INTRO_SFX_URL = pickSoundFxUrl(/\/Intro\.mp3$/i);
 export const MENU_BACKGROUND_SFX_URL = pickSoundFxUrl(/Background Sound\.mp3$/i);
 
 export function loadSoundEffects(scene: Phaser.Scene): void {
-  if (EXPLOSION_SFX_URL) {
-    scene.load.audio(EXPLOSION_SFX_KEY, EXPLOSION_SFX_URL);
+  loadBootSoundEffects(scene);
+  loadDeferredSoundEffects(scene);
+}
+
+function loadAudioIfMissing(scene: Phaser.Scene, key: string, url: string | undefined): void {
+  if (url && !scene.cache.audio.exists(key)) {
+    scene.load.audio(key, url);
   }
-  if (HIT_SFX_URL) {
-    scene.load.audio(HIT_SFX_KEY, HIT_SFX_URL);
-  }
-  if (PUMPKIN_BOUNCE_SFX_URL) {
-    scene.load.audio(PUMPKIN_BOUNCE_SFX_KEY, PUMPKIN_BOUNCE_SFX_URL);
-  }
-  if (ENEMY_WALKING_SFX_URL) {
-    scene.load.audio(ENEMY_WALKING_SFX_KEY, ENEMY_WALKING_SFX_URL);
-  }
-  if (BAT_FLAP_SFX_URL) {
-    scene.load.audio(BAT_FLAP_SFX_KEY, BAT_FLAP_SFX_URL);
-  }
-  if (GHOST_SFX_URL) {
-    scene.load.audio(GHOST_SFX_KEY, GHOST_SFX_URL);
-  }
-  if (SLIME_MAN_SFX_URL) {
-    scene.load.audio(SLIME_MAN_SFX_KEY, SLIME_MAN_SFX_URL);
-  }
-  if (INTRO_SFX_URL) {
-    scene.load.audio(INTRO_SFX_KEY, INTRO_SFX_URL);
-  }
-  if (MENU_BACKGROUND_SFX_URL) {
-    scene.load.audio(MENU_BACKGROUND_SFX_KEY, MENU_BACKGROUND_SFX_URL);
-  }
+}
+
+/** Combat + menu essentials for level 1 boot. */
+export function loadBootSoundEffects(scene: Phaser.Scene): void {
+  loadAudioIfMissing(scene, EXPLOSION_SFX_KEY, EXPLOSION_SFX_URL);
+  loadAudioIfMissing(scene, HIT_SFX_KEY, HIT_SFX_URL);
+  loadAudioIfMissing(scene, PUMPKIN_BOUNCE_SFX_KEY, PUMPKIN_BOUNCE_SFX_URL);
+  loadAudioIfMissing(scene, BAT_FLAP_SFX_KEY, BAT_FLAP_SFX_URL);
+  loadAudioIfMissing(scene, GHOST_SFX_KEY, GHOST_SFX_URL);
+  loadAudioIfMissing(scene, INTRO_SFX_KEY, INTRO_SFX_URL);
+  loadAudioIfMissing(scene, MENU_BACKGROUND_SFX_KEY, MENU_BACKGROUND_SFX_URL);
   for (const characterId of CHARACTER_IDS) {
     const url = pickCharacterWalkingUrl(characterId);
-    if (url) {
-      scene.load.audio(getWalkingSfxKey(characterId), url);
-    }
+    const key = getWalkingSfxKey(characterId);
+    loadAudioIfMissing(scene, key, url);
   }
+}
+
+/** Level 2 + boss audio — deferred after menu. */
+export function loadDeferredSoundEffects(scene: Phaser.Scene): void {
+  loadAudioIfMissing(scene, ENEMY_WALKING_SFX_KEY, ENEMY_WALKING_SFX_URL);
+  loadAudioIfMissing(scene, SLIME_MAN_SFX_KEY, SLIME_MAN_SFX_URL);
 }
 
 export function hasWalkingSfx(scene: Phaser.Scene, characterId: CharacterId): boolean {

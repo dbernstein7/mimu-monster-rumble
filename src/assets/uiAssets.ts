@@ -95,20 +95,40 @@ const UI_TEXTURE_KEYS = [
 ] as const;
 
 export function loadUiTextures(scene: Phaser.Scene): void {
+  loadCriticalUiTextures(scene);
+  loadDeferredUiTextures(scene);
+}
+
+/** Menu + gameplay chrome needed before first Play. */
+export function loadCriticalUiTextures(scene: Phaser.Scene): void {
   const entries: [string, string | undefined][] = [
     [PLAY_BUTTON_TEXTURE_KEY, PLAY_BUTTON_URL],
-    [LEADERBOARD_BUTTON_TEXTURE_KEY, LEADERBOARD_BUTTON_URL],
     [MAIN_MENU_BUTTON_TEXTURE_KEY, MAIN_MENU_BUTTON_URL],
     [SIGN_IN_BUTTON_TEXTURE_KEY, SIGN_IN_BUTTON_URL],
     [LOG_OUT_BUTTON_TEXTURE_KEY, LOG_OUT_BUTTON_URL],
     [TITLE_TEXTURE_KEY, TITLE_URL],
     [MENU_BACKGROUND_TEXTURE_KEY, MENU_BACKGROUND_URL],
+  ];
+
+  entries.forEach(([key, url]) => {
+    if (url && !scene.textures.exists(key)) {
+      scene.load.image(key, url);
+    }
+  });
+}
+
+/** Large reference panels — load after menu is up. */
+export function loadDeferredUiTextures(scene: Phaser.Scene): void {
+  const entries: [string, string | undefined][] = [
+    [LEADERBOARD_BUTTON_TEXTURE_KEY, LEADERBOARD_BUTTON_URL],
     [LEADERBOARD_BORDER_TEXTURE_KEY, LEADERBOARD_BORDER_URL],
     [CONTROLS_TEXTURE_KEY, CONTROLS_URL],
   ];
 
   entries.forEach(([key, url]) => {
-    if (url) scene.load.image(key, url);
+    if (url && !scene.textures.exists(key)) {
+      scene.load.image(key, url);
+    }
   });
 }
 

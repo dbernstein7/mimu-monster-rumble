@@ -43,22 +43,30 @@ export const LEVEL_2_MUSIC_URL = pickLevelMusicUrl(/\/Level 2\.mp3$/i);
 export const LEVEL_2_2_MUSIC_URL = pickLevelMusicUrl(/\/Level 2\.2\.mp3$/i);
 
 export function loadBossMusic(scene: Phaser.Scene): void {
-  if (BOSS_MUSIC_URL) {
+  if (BOSS_MUSIC_URL && !scene.cache.audio.exists(BOSS_MUSIC_KEY)) {
     scene.load.audio(BOSS_MUSIC_KEY, BOSS_MUSIC_URL);
   }
 }
 
 export function loadLevelMusic(scene: Phaser.Scene): void {
-  if (LEVEL_1_MUSIC_URL) {
+  loadBootLevelMusic(scene);
+  loadDeferredLevelMusic(scene);
+}
+
+export function loadBootLevelMusic(scene: Phaser.Scene): void {
+  if (LEVEL_1_MUSIC_URL && !scene.cache.audio.exists(LEVEL_1_MUSIC_KEY)) {
     scene.load.audio(LEVEL_1_MUSIC_KEY, LEVEL_1_MUSIC_URL);
   }
-  if (LEVEL_1_2_MUSIC_URL) {
+}
+
+export function loadDeferredLevelMusic(scene: Phaser.Scene): void {
+  if (LEVEL_1_2_MUSIC_URL && !scene.cache.audio.exists(LEVEL_1_2_MUSIC_KEY)) {
     scene.load.audio(LEVEL_1_2_MUSIC_KEY, LEVEL_1_2_MUSIC_URL);
   }
-  if (LEVEL_2_MUSIC_URL) {
+  if (LEVEL_2_MUSIC_URL && !scene.cache.audio.exists(LEVEL_2_MUSIC_KEY)) {
     scene.load.audio(LEVEL_2_MUSIC_KEY, LEVEL_2_MUSIC_URL);
   }
-  if (LEVEL_2_2_MUSIC_URL) {
+  if (LEVEL_2_2_MUSIC_URL && !scene.cache.audio.exists(LEVEL_2_2_MUSIC_KEY)) {
     scene.load.audio(LEVEL_2_2_MUSIC_KEY, LEVEL_2_2_MUSIC_URL);
   }
 }

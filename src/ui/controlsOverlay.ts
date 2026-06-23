@@ -1,5 +1,10 @@
 import Phaser from 'phaser';
-import { CONTROLS_TEXTURE_KEY, hasControlsTexture } from '../assets/uiAssets';
+import {
+  CONTROLS_TEXTURE_KEY,
+  configureUiTextures,
+  hasControlsTexture,
+  loadDeferredUiTextures,
+} from '../assets/uiAssets';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import { isMobileTouchDevice } from '../utils/device';
 import { createIconButton, UI_COLORS, UI_FONTS } from './theme';
@@ -171,6 +176,19 @@ function openControlsModal(scene: Phaser.Scene, onClose?: () => void): void {
 }
 
 function openControlsPanel(scene: Phaser.Scene, options?: ControlsButtonOptions): void {
+  if (!hasControlsTexture(scene)) {
+    loadDeferredUiTextures(scene);
+    scene.load.once(Phaser.Loader.Events.COMPLETE, () => {
+      configureUiTextures(scene);
+      if (!scene.scene.isActive()) return;
+      openControlsPanel(scene, options);
+    });
+    if (!scene.load.isLoading()) {
+      scene.load.start();
+    }
+    return;
+  }
+
   options?.onOpen?.();
   openControlsModal(scene, options?.onClose);
 }

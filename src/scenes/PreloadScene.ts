@@ -2,23 +2,7 @@ import Phaser from 'phaser';
 import { CHARACTERS } from '../config/characters';
 import { ENEMIES, BOSS_CONFIG } from '../config/enemies';
 import { POWERUPS } from '../config/powerups';
-import { loadAttackTextures, registerAttackAnimations } from '../assets/attackAssets';
-import { loadCoinTextures } from '../assets/coinAssets';
-import {
-  configureCharacterSelectCardTextures,
-  loadCharacterSelectCards,
-} from '../assets/characterSelectAssets';
-import { loadFloorTextures } from '../assets/floorTextures';
-import { loadBoss2SlimeBallTextures } from '../assets/bossProjectileAssets';
-import { loadBossMusic, loadLevelMusic, warmUpBossMusic } from '../assets/musicAssets';
-import { loadSoundEffects } from '../assets/soundFxAssets';
-import { configureUiTextures, loadUiTextures } from '../assets/uiAssets';
-import { loadPowerUpTextures } from '../assets/powerUpAssets';
-import { CHARACTER_SPRITES } from '../config/playerSprites';
-import { loadEnemySprites, registerEnemyAnimations } from '../systems/EnemyAnimation';
-import { loadCharacterSprites, registerCharacterAnimations } from '../systems/PlayerAnimation';
-import { ENEMY_SPRITES } from '../config/enemySprites';
-import type { CharacterId, EnemyType } from '../types/game';
+import { loadBootAssets, registerBootAssets } from '../assets/stagedLoading';
 
 export default class PreloadScene extends Phaser.Scene {
   constructor() {
@@ -58,42 +42,14 @@ export default class PreloadScene extends Phaser.Scene {
       loadingText.destroy();
     });
 
-    loadFloorTextures(this);
-    loadCharacterSelectCards(this);
-    loadAttackTextures(this);
-    loadPowerUpTextures(this);
-    loadCoinTextures(this);
-    loadBossMusic(this);
-    loadLevelMusic(this);
-    loadSoundEffects(this);
-    loadBoss2SlimeBallTextures(this);
-    loadUiTextures(this);
-    (Object.keys(CHARACTER_SPRITES) as CharacterId[]).forEach((id) => {
-      loadCharacterSprites(this, id);
-    });
-    (Object.keys(ENEMY_SPRITES) as EnemyType[]).forEach((type) => {
-      loadEnemySprites(this, type);
-    });
-    loadEnemySprites(this, 'boss');
-    loadEnemySprites(this, 'boss2');
+    loadBootAssets(this);
   }
 
   create(): void {
     document.getElementById('boot-loader')?.classList.add('hidden');
 
-    (Object.keys(CHARACTER_SPRITES) as CharacterId[]).forEach((id) => {
-      registerCharacterAnimations(this, id);
-    });
-    (Object.keys(ENEMY_SPRITES) as EnemyType[]).forEach((type) => {
-      registerEnemyAnimations(this, type);
-    });
-    registerEnemyAnimations(this, 'boss');
-    registerEnemyAnimations(this, 'boss2');
-    registerAttackAnimations(this);
-    configureCharacterSelectCardTextures(this);
-    configureUiTextures(this);
+    registerBootAssets(this);
     this.generateTextures();
-    warmUpBossMusic(this);
     this.scene.start('MainMenuScene');
   }
 

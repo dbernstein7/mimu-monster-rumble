@@ -26,6 +26,10 @@ import {
 } from '../utils/sceneNav';
 import { resetRunState, RUN_MIMU1_KEY } from '../utils/runState';
 import {
+  areDeferredAssetsReady,
+  ensureDeferredAssets,
+} from '../assets/stagedLoading';
+import {
   CHARACTER_SELECT_CARD_CORNER_RADIUS,
   applyRoundedCardMask,
   fitCharacterSelectCard,
@@ -166,6 +170,27 @@ export default class CharacterSelectScene extends Phaser.Scene {
   }
 
   create(): void {
+    if (!areDeferredAssetsReady()) {
+      this.cameras.main.setBackgroundColor('#000000');
+      const waitText = this.add
+        .text(GAME_WIDTH / 2, GAME_HEIGHT / 2, 'Loading heroes…', {
+          fontFamily: UI_FONTS.body,
+          fontSize: '18px',
+          color: '#ffc857',
+          fontStyle: 'bold',
+        })
+        .setOrigin(0.5)
+        .setDepth(500);
+      const levelIndex = this.targetLevelIndex;
+      const continueRun = this.continueRun;
+      void ensureDeferredAssets(this.game).then(() => {
+        waitText.destroy();
+        if (!this.scene.isActive()) return;
+        this.scene.restart({ levelIndex, continueRun });
+      });
+      return;
+    }
+
     stopOtherScenes(this.game, 'CharacterSelectScene');
     this.input.keyboard?.clearCaptures();
     this.input.resetPointers();

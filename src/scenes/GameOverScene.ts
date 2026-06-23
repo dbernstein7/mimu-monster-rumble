@@ -32,6 +32,7 @@ import {
   MAIN_MENU_SCENE_KEY,
   startSceneNextTick,
 } from '../utils/sceneNav';
+import { isMobileTouchDevice } from '../utils/device';
 import { destroyGameOverOverlay, mountGameOverNav } from '../ui/gameOverOverlay';
 
 /** Score summary panel — same border treatment as leaderboard / account. */
@@ -250,7 +251,8 @@ export default class GameOverScene extends Phaser.Scene {
       resetRunState(this.registry);
     }
     focusGameSurface();
-    startSceneNextTick(this.game, sceneKey, data, 50);
+    const handoffDelay = isMobileTouchDevice() ? 0 : 50;
+    startSceneNextTick(this.game, sceneKey, data, handoffDelay);
   }
 
   private async saveRunResults(
