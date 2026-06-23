@@ -84,6 +84,23 @@ function getPauseContentLayout(hasBorder: boolean) {
   };
 }
 
+/** Mobile boss → gate → fade → character select pacing (wall-clock, not Phaser time). */
+const MOBILE_BOSS_EXIT = {
+  walkSpeedMult: 2.4,
+  maxWalkMs: 1800,
+  arrivePx: 24,
+  fadeMs: 160,
+  walkSafetyMs: 2400,
+  forceCompleteMs: 3800,
+  bannerMs: 350,
+  sceneRetryMs: 120,
+  sceneFallbackMs: 450,
+} as const;
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
 export default class GameScene extends Phaser.Scene {
   player!: Player;
   enemies!: Phaser.GameObjects.Group;
@@ -528,7 +545,7 @@ export default class GameScene extends Phaser.Scene {
       if (this.levelTransitioning && !this.nextLevelHandoffStarted) {
         this.goToNextLevel();
       }
-    }, 7000);
+    }, MOBILE_BOSS_EXIT.forceCompleteMs);
   }
 
   /**
@@ -540,7 +557,9 @@ export default class GameScene extends Phaser.Scene {
     this.clearMobileExitRaf();
     this.mobileExitLastTs = performance.now();
     const walkStartedAt = this.mobileExitLastTs;
-    const maxWalkMs = 4500;
+    const maxWalkMs = MOBILE_BOSS_EXIT.maxWalkMs;
+    const arrivePx = MOBILE_BOSS_EXIT.arrivePx;
+    const walkSpeed = this.player.moveSpeed * MOBILE_BOSS_EXIT.walkSpeedMult;
 
     const tick = (now: number): void => {
       if (!this.scene.isActive() || this.gameEnding) {
@@ -566,7 +585,7 @@ export default class GameScene extends Phaser.Scene {
       const target = this.exitGateTarget;
       const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
 
-      if (dist < 16 || now - walkStartedAt >= maxWalkMs) {
+      if (dist < arrivePx || now - walkStartedAt >= maxWalkMs) {
         this.clearMobileExitRaf();
         this.finishLevelExit();
         return;
@@ -574,7 +593,7 @@ export default class GameScene extends Phaser.Scene {
 
       const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
       const walk = { x: Math.cos(angle), y: Math.sin(angle) };
-      const step = Math.min(dist, this.player.moveSpeed * (frameDelta / 1000));
+      const step = Math.min(dist, walkSpeed * (frameDelta / 1000));
       this.player.x += walk.x * step;
       this.player.y += walk.y * step;
       this.player.setVelocity(0, 0);
@@ -765,9 +784,6 @@ export default class GameScene extends Phaser.Scene {
         }
       };
       window.setTimeout(triggerBossDefeat, 0);
-      if (isMobileTouchDevice()) {
-        window.setTimeout(triggerBossDefeat, 200);
-      }
     }
   }
 
@@ -968,8 +984,13 @@ export default class GameScene extends Phaser.Scene {
     const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
-    this.scheduleLevelExitSafetyFinish(5000);
+    this.scheduleLevelExitSafetyFinish(isMobileTouchDevice() ? MOBILE_BOSS_EXIT.walkSafetyMs : 5000);
     if (isMobileTouchDevice()) {
+      window.setTimeout(() => {
+        if (this.levelExitActive && !this.levelTransitioning) {
+          this.levelCompleteBanner.setVisible(false);
+        }
+      }, MOBILE_BOSS_EXIT.bannerMs);
       this.startMobileExitDriver();
       this.scheduleMobileBossExitForceComplete();
     }
@@ -1068,7 +1089,7 @@ export default class GameScene extends Phaser.Scene {
       .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0)
       .setDepth(400);
 
-    const fadeDurationMs = 350;
+    const fadeDurationMs = isMobileTouchDevice() ? MOBILE_BOSS_EXIT.fadeMs : 350;
 
     this.prepareBossExitHandoff();
 
@@ -1084,9 +1105,9 @@ export default class GameScene extends Phaser.Scene {
 
       const tickFade = (now: number): void => {
         if (fadeDone) return;
-        const progress = Math.min(1, (now - fadeStartedAt) / fadeDurationMs);
-        fadeOut.setAlpha(progress);
-        if (progress < 1) {
+        const linear = Math.min(1, (now - fadeStartedAt) / fadeDurationMs);
+        fadeOut.setAlpha(easeOutCubic(linear));
+        if (linear < 1) {
           requestAnimationFrame(tickFade);
         } else {
           completeFade();
@@ -1097,7 +1118,7 @@ export default class GameScene extends Phaser.Scene {
       this.levelExitRealtimeSafety = window.setTimeout(() => {
         this.levelExitRealtimeSafety = undefined;
         completeFade();
-      }, fadeDurationMs + 250);
+      }, fadeDurationMs + 80);
       return;
     }
 
@@ -1158,18 +1179,18 @@ export default class GameScene extends Phaser.Scene {
         this.scene.start(nextSceneKey, payload);
       };
 
-      window.setTimeout(startNext, 0);
+      startNext();
       this.levelAdvanceRealtimeSafety = window.setTimeout(() => {
         this.levelAdvanceRealtimeSafety = undefined;
         if (!this.game.scene.isActive(nextSceneKey)) {
           launchSceneNow(this.game, nextSceneKey, payload);
         }
-      }, 400);
+      }, MOBILE_BOSS_EXIT.sceneRetryMs);
       window.setTimeout(() => {
         if (!this.game.scene.isActive(nextSceneKey)) {
           startSceneNextTick(this.game, nextSceneKey, payload, 0);
         }
-      }, 1200);
+      }, MOBILE_BOSS_EXIT.sceneFallbackMs);
       return;
     }
 

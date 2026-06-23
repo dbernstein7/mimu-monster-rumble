@@ -413,7 +413,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
       this.game,
       'GameScene',
       { characterId: id, levelIndex: this.targetLevelIndex },
-      isMobileTouchDevice() ? 50 : 0,
+      0,
     );
   }
 
