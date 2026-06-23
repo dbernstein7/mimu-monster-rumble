@@ -2,6 +2,17 @@ import type { LeaderboardEntry } from '../types/game';
 
 const API_URL = '/api/leaderboard';
 
+function sanitizeLeaderboardUsername(raw: string): string {
+  const collapsed = raw.trim().replace(/\s+/g, ' ');
+  if (collapsed.length < 2 || collapsed.length > 16) return 'Player';
+  if (!/^[a-zA-Z0-9 _-]+$/.test(collapsed)) return 'Player';
+  return collapsed;
+}
+
+function sanitizeLeaderboardText(raw: string, maxLen: number): string {
+  return raw.trim().slice(0, maxLen);
+}
+
 interface ApiLeaderboardResponse {
   ok: boolean;
   configured?: boolean;
@@ -22,21 +33,28 @@ export async function submitScoreToApi(entry: LeaderboardEntry): Promise<ApiSubm
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      playerId: entry.userId,
-      username: entry.username,
-      score: entry.score,
-      character: entry.character,
-      character2: entry.character2,
-      level: entry.level,
-      timestamp: entry.timestamp,
+      playerId: entry.userId.trim(),
+      username: sanitizeLeaderboardUsername(entry.username),
+      score: Math.max(0, Math.floor(Number(entry.score) || 0)),
+      character: sanitizeLeaderboardText(entry.character || 'Unknown', 48),
+      character2: entry.character2 ? sanitizeLeaderboardText(entry.character2, 48) : undefined,
+      level: sanitizeLeaderboardText(entry.level || '', 32),
+      timestamp: entry.timestamp || Date.now(),
     }),
   });
 
-  if (!res.ok) {
-    return { ok: false, error: `HTTP ${res.status}` };
+  let json: ApiSubmitResponse = { ok: false, error: `HTTP ${res.status}` };
+  try {
+    json = (await res.json()) as ApiSubmitResponse;
+  } catch {
+    // Keep HTTP fallback message.
   }
 
-  return (await res.json()) as ApiSubmitResponse;
+  if (!res.ok) {
+    return { ok: false, error: json.error || `HTTP ${res.status}` };
+  }
+
+  return json;
 }
 
 export async function fetchLeaderboardFromApi(): Promise<LeaderboardEntry[] | null> {

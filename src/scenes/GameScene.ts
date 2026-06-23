@@ -21,8 +21,8 @@ import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '..
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
 import { MAIN_MENU_INPUT_GUARD_MS } from '../utils/sceneNav';
-import { getCurrentUser } from '../services/firebase';
-import { bankRunCoins } from '../services/userProfile';
+import { getCurrentUser, submitScore, waitForAuthReady } from '../services/firebase';
+import { bankRunCoins, getCachedProfile, loadUserProfile } from '../services/userProfile';
 import { RUN_MIMU1_KEY } from '../utils/runState';
 import { buildOctagonArenaWalls, randomPointNearArenaWall } from '../utils/arenaWalls';
 import { createScreenCornerVignette } from '../utils/playerSpotlight';
@@ -297,12 +297,39 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private async finishExitToMainMenu(runCoins: number): Promise<void> {
+    await waitForAuthReady();
     const user = getCurrentUser();
-    if (user && runCoins > 0) {
-      try {
-        await bankRunCoins(runCoins);
-      } catch {
-        // Still return to menu if banking fails.
+    const score = this.player?.score ?? 0;
+
+    if (user) {
+      await loadUserProfile();
+      const username = getCachedProfile()?.username ?? user.username;
+      const level = getLevel(this.levelIndex);
+      const char = getCharacter(this.characterId);
+      const runMimu1 = this.registry.get(RUN_MIMU1_KEY) as CharacterId | undefined;
+
+      if (runCoins > 0) {
+        try {
+          await bankRunCoins(runCoins);
+        } catch {
+          // Still return to menu if banking fails.
+        }
+      }
+
+      if (score > 0) {
+        try {
+          await submitScore({
+            userId: user.userId,
+            username,
+            score,
+            character: runMimu1 ? getCharacter(runMimu1).name : char.name,
+            character2: runMimu1 && runMimu1 !== this.characterId ? char.name : undefined,
+            level: level.name,
+            timestamp: Date.now(),
+          });
+        } catch {
+          // Still return to menu if score save fails.
+        }
       }
     }
 

@@ -17,6 +17,7 @@ import {
   collection,
   doc,
   setDoc,
+  updateDoc,
   getDoc,
   getDocs,
   query,
@@ -27,14 +28,17 @@ import {
 import type { CoinLeaderboardEntry, LeaderboardEntry } from '../types/game';
 import { fetchLeaderboardFromApi, submitScoreToApi } from './leaderboardApi';
 
-export type ScoreSaveTarget = 'firebase' | 'api' | 'local';
+export type ScoreSaveTarget = 'firebase' | 'api' | 'none';
 
-export type LeaderboardSource = 'global' | 'unavailable';
+export type SubmitScoreFailureReason = 'not_best' | 'cloud_failed' | 'invalid_score';
 
 export interface SubmitScoreResult {
   target: ScoreSaveTarget;
   saved: boolean;
+  reason?: SubmitScoreFailureReason;
 }
+
+export type LeaderboardSource = 'global' | 'unavailable';
 
 export interface LeaderboardFetchResult {
   entries: LeaderboardEntry[];
@@ -42,7 +46,6 @@ export interface LeaderboardFetchResult {
   viewerEntry?: LeaderboardEntry | null;
 }
 
-const LOCAL_KEY = 'mimu_leaderboard';
 const PLAYER_ID_KEY = 'mimu:playerId';
 const LEADERBOARD_LIMIT = 50;
 const LEADERBOARD_FETCH_LIMIT = 200;
@@ -166,18 +169,24 @@ function getOrCreatePlayerId(): string {
   }
 }
 
-function getLocalLeaderboard(): LeaderboardEntry[] {
-  try {
-    return JSON.parse(localStorage.getItem(LOCAL_KEY) ?? '[]');
-  } catch {
-    return [];
-  }
+function sanitizeLeaderboardUsername(raw: string): string {
+  const collapsed = raw.trim().replace(/\s+/g, ' ');
+  if (collapsed.length < 2 || collapsed.length > 16) return 'Player';
+  if (!/^[a-zA-Z0-9 _-]+$/.test(collapsed)) return 'Player';
+  return collapsed;
 }
 
-function saveLocalLeaderboard(entries: LeaderboardEntry[]): void {
-  localStorage.setItem(LOCAL_KEY, JSON.stringify(entries.slice(0, LEADERBOARD_LIMIT)));
+function normalizeLeaderboardEntry(entry: LeaderboardEntry): LeaderboardEntry {
+  return {
+    userId: entry.userId.trim(),
+    username: sanitizeLeaderboardUsername(entry.username),
+    score: Math.max(0, Math.floor(Number(entry.score) || 0)),
+    character: (entry.character || 'Unknown').trim().slice(0, 48),
+    character2: entry.character2?.trim().slice(0, 48) || undefined,
+    level: (entry.level || '').trim().slice(0, 32),
+    timestamp: Number(entry.timestamp) || Date.now(),
+  };
 }
-
 function dedupeLeaderboardEntries(entries: LeaderboardEntry[]): LeaderboardEntry[] {
   const best = new Map<string, LeaderboardEntry>();
 
@@ -280,45 +289,75 @@ export function onAuthChange(callback: (user: User | null) => void): (() => void
 }
 
 export async function submitScore(entry: LeaderboardEntry): Promise<SubmitScoreResult> {
+  const normalized = normalizeLeaderboardEntry(entry);
+  if (normalized.score <= 0) {
+    return { target: 'none', saved: false, reason: 'invalid_score' };
+  }
+
   let apiSaved = false;
+  let apiConfigured = false;
+  let apiSkippedNotBest = false;
 
   try {
-    const apiResult = await submitScoreToApi(entry);
-    apiSaved = !!(apiResult.ok && apiResult.configured !== false && apiResult.saved);
+    const apiResult = await submitScoreToApi(normalized);
+    apiConfigured = !!(apiResult.ok && apiResult.configured !== false);
+    if (apiResult.ok && apiConfigured && apiResult.saved) {
+      apiSaved = true;
+    } else if (apiResult.skipped === 'not_personal_best') {
+      apiSkippedNotBest = true;
+    }
   } catch {
-    // Try Firebase / local storage.
+    // Try Firestore next.
   }
 
   let firebaseSaved = false;
-  if (initFirebase() && auth?.currentUser && db) {
+  let firestoreNotBest = false;
+  let firestoreAttempted = false;
+
+  await waitForAuthReady();
+  const authUser = getAuthInstance()?.currentUser;
+  if (authUser && authUser.uid === normalized.userId && db) {
+    firestoreAttempted = true;
     try {
-      const ref = doc(db, 'leaderboard', entry.userId);
+      const ref = doc(db, 'leaderboard', normalized.userId);
       const existing = await getDoc(ref);
       const prevScore = existing.exists() ? (existing.data() as LeaderboardEntry).score : -1;
-      if (entry.score > prevScore) {
-        await setDoc(ref, entry);
+      if (normalized.score > prevScore) {
+        const firestorePayload: LeaderboardEntry = {
+          userId: normalized.userId,
+          username: normalized.username,
+          score: normalized.score,
+          character: normalized.character,
+          level: normalized.level,
+          timestamp: normalized.timestamp,
+          ...(normalized.character2 ? { character2: normalized.character2 } : {}),
+        };
+        if (existing.exists()) {
+          await updateDoc(ref, firestorePayload);
+        } else {
+          await setDoc(ref, firestorePayload);
+        }
         firebaseSaved = true;
+      } else if (existing.exists()) {
+        firestoreNotBest = true;
       }
     } catch {
-      // Try local storage.
+      // Report as cloud failure below if nothing saved.
     }
   }
 
-  let localSaved = false;
-  const board = getLocalLeaderboard();
-  const prevLocal = board.find((row) => row.userId === entry.userId);
-  if (!prevLocal || entry.score > prevLocal.score) {
-    const next = board.filter((row) => row.userId !== entry.userId);
-    next.push(entry);
-    saveLocalLeaderboard(dedupeLeaderboardEntries(next));
-    localSaved = true;
+  if (apiSaved) return { target: 'api', saved: true };
+  if (firebaseSaved) return { target: 'firebase', saved: true };
+
+  if (apiSkippedNotBest && firestoreNotBest) {
+    return { target: apiConfigured ? 'api' : 'firebase', saved: false, reason: 'not_best' };
   }
 
-  const saved = apiSaved || firebaseSaved || localSaved;
-  if (apiSaved) return { target: 'api', saved };
-  if (firebaseSaved) return { target: 'firebase', saved };
-  if (localSaved) return { target: 'local', saved };
-  return { target: 'local', saved };
+  if (!firestoreAttempted && !apiConfigured) {
+    return { target: 'none', saved: false, reason: 'cloud_failed' };
+  }
+
+  return { target: 'none', saved: false, reason: 'cloud_failed' };
 }
 
 async function fetchCloudPersonalBest(userId: string): Promise<LeaderboardEntry | null> {
@@ -367,6 +406,12 @@ export async function fetchLeaderboard(): Promise<LeaderboardFetchResult> {
   const user = getCurrentUser();
   if (user && globalAvailable) {
     viewerEntry = await fetchCloudPersonalBest(user.userId);
+    if (viewerEntry) {
+      const existing = collected.find((row) => row.userId === user.userId);
+      if (!existing || viewerEntry.score > existing.score) {
+        collected.push(viewerEntry);
+      }
+    }
   }
 
   if (globalAvailable) {

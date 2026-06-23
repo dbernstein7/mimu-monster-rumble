@@ -2,8 +2,8 @@ import Phaser from 'phaser';
 import { getCharacter } from '../config/characters';
 import { getLevel } from '../config/levels';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
-import { getCurrentUser, submitScore, type SubmitScoreResult } from '../services/firebase';
-import { bankRunCoins } from '../services/userProfile';
+import { getCurrentUser, submitScore, waitForAuthReady, type SubmitScoreResult } from '../services/firebase';
+import { bankRunCoins, getCachedProfile, loadUserProfile } from '../services/userProfile';
 import {
   addPanelBorder,
   hasLeaderboardBorderTexture,
@@ -159,7 +159,6 @@ export default class GameOverScene extends Phaser.Scene {
     if (user) {
       void this.saveRunResults(
         statusText,
-        user,
         score,
         coins,
         runMimu1 ? getCharacter(runMimu1).name : character.name,
@@ -212,7 +211,6 @@ export default class GameOverScene extends Phaser.Scene {
 
   private async saveRunResults(
     statusText: Phaser.GameObjects.Text,
-    user: { userId: string; username: string },
     score: number,
     coins: number,
     characterName: string,
@@ -222,30 +220,42 @@ export default class GameOverScene extends Phaser.Scene {
     const parts: string[] = [];
 
     try {
+      await waitForAuthReady();
+      const user = getCurrentUser();
+      if (!user) {
+        statusText.setText('Sign in to bank coins and save scores');
+        statusText.setColor('#a89bc4');
+        return;
+      }
+
+      await loadUserProfile();
+      const username = getCachedProfile()?.username ?? user.username;
+
       if (coins > 0) {
         const bank = await bankRunCoins(coins);
         if (bank.banked > 0) {
           parts.push(
-            bank.target === 'firebase'
-              ? `Banked ${formatScore(bank.banked)} coins · Wallet ${formatScore(bank.totalCoins)}`
-              : `Banked ${formatScore(bank.banked)} coins · Wallet ${formatScore(bank.totalCoins)}`,
+            `Banked ${formatScore(bank.banked)} coins · Wallet ${formatScore(bank.totalCoins)}`,
           );
         } else if (coins > 0) {
           parts.push(`Could not bank ${formatScore(coins)} coins — try again`);
         }
       }
 
-      const scoreResult = await submitScore({
-        userId: user.userId,
-        username: user.username,
-        score,
-        character: characterName,
-        character2: character2Name,
-        level: levelName,
-        timestamp: Date.now(),
-      });
-      parts.push(scoreSaveMessage(scoreResult));
-      statusText.setText(parts.join('  ·  '));
+      if (score > 0) {
+        const scoreResult = await submitScore({
+          userId: user.userId,
+          username,
+          score,
+          character: characterName,
+          character2: character2Name,
+          level: levelName,
+          timestamp: Date.now(),
+        });
+        parts.push(scoreSaveMessage(scoreResult));
+      }
+
+      statusText.setText(parts.length ? parts.join('  ·  ') : 'Run saved');
     } catch {
       statusText.setText(parts.length ? parts.join('  ·  ') : 'Could not save run — try again');
       statusText.setColor('#ff4757');
@@ -277,15 +287,16 @@ export default class GameOverScene extends Phaser.Scene {
 }
 
 function scoreSaveMessage(result: SubmitScoreResult): string {
-  if (!result.saved) {
-    return 'High score unchanged — already on the board';
+  if (result.saved) {
+    return result.target === 'api'
+      ? 'High score saved to global leaderboard'
+      : 'High score saved to cloud leaderboard';
   }
-  switch (result.target) {
-    case 'firebase':
-      return 'Score saved to cloud leaderboard';
-    case 'api':
-      return 'Score saved to live leaderboard';
-    default:
-      return 'Score saved on this device';
+  if (result.reason === 'not_best') {
+    return 'Run score below your personal best';
   }
+  if (result.reason === 'invalid_score') {
+    return 'No score to save this run';
+  }
+  return 'Could not save high score — try again';
 }
