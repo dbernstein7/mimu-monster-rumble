@@ -96,7 +96,9 @@ export function startSceneNextTick(
       prepareMobileSceneHandoff(game);
     }
     releaseStuckPointers(game);
-    stopScenesExcept(game, key);
+    if (!isMobileTouchDevice()) {
+      stopScenesExcept(game, key);
+    }
     game.scene.start(key, data);
   }, delayMs);
 }

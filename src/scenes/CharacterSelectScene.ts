@@ -392,7 +392,12 @@ export default class CharacterSelectScene extends Phaser.Scene {
 
     this.registry.set('characterId', id);
     this.registry.set('levelIndex', this.targetLevelIndex);
-    startSceneNextTick(this.game, 'GameScene', { characterId: id, levelIndex: this.targetLevelIndex }, 0);
+    startSceneNextTick(
+      this.game,
+      'GameScene',
+      { characterId: id, levelIndex: this.targetLevelIndex },
+      isMobileTouchDevice() ? 50 : 0,
+    );
   }
 
   private stopChooseMimuAudio(): void {
