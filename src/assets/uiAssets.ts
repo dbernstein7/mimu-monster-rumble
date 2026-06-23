@@ -103,6 +103,7 @@ export function loadUiTextures(scene: Phaser.Scene): void {
 export function loadCriticalUiTextures(scene: Phaser.Scene): void {
   const entries: [string, string | undefined][] = [
     [PLAY_BUTTON_TEXTURE_KEY, PLAY_BUTTON_URL],
+    [LEADERBOARD_BUTTON_TEXTURE_KEY, LEADERBOARD_BUTTON_URL],
     [MAIN_MENU_BUTTON_TEXTURE_KEY, MAIN_MENU_BUTTON_URL],
     [SIGN_IN_BUTTON_TEXTURE_KEY, SIGN_IN_BUTTON_URL],
     [LOG_OUT_BUTTON_TEXTURE_KEY, LOG_OUT_BUTTON_URL],
@@ -120,7 +121,6 @@ export function loadCriticalUiTextures(scene: Phaser.Scene): void {
 /** Large reference panels — load after menu is up. */
 export function loadDeferredUiTextures(scene: Phaser.Scene): void {
   const entries: [string, string | undefined][] = [
-    [LEADERBOARD_BUTTON_TEXTURE_KEY, LEADERBOARD_BUTTON_URL],
     [LEADERBOARD_BORDER_TEXTURE_KEY, LEADERBOARD_BORDER_URL],
     [CONTROLS_TEXTURE_KEY, CONTROLS_URL],
   ];
