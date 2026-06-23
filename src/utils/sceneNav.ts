@@ -50,6 +50,7 @@ export function startSceneNextTick(
   game: Phaser.Game,
   key: string,
   data?: object,
+  delayMs = 0,
 ): void {
   if (key !== AUTH_SCENE_KEY) {
     destroyAuthFormOverlay();
@@ -64,7 +65,7 @@ export function startSceneNextTick(
   window.setTimeout(() => {
     releaseStuckPointers(game);
     game.scene.start(key, data);
-  }, 0);
+  }, delayMs);
 }
 
 export function returnToMainMenu(game: Phaser.Game): void {
