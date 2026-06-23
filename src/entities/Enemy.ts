@@ -488,6 +488,7 @@ export interface ProjectileOptions {
 export class Projectile extends Phaser.Physics.Arcade.Sprite {
   damage = 1;
   private rotateToVelocity = false;
+  private ttlTimer = 0;
 
   constructor(scene: Phaser.Scene, x: number, y: number, options?: ProjectileOptions) {
     const textureKey = options?.textureKey ?? 'projectile';
@@ -516,17 +517,32 @@ export class Projectile extends Phaser.Physics.Arcade.Sprite {
     const angle = Phaser.Math.Angle.Between(this.x, this.y, tx, ty);
     this.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     this.aimAlong(angle);
-    this.scene.time.delayedCall(3000, () => {
-      if (this.active) this.destroy();
-    });
+    this.scheduleTtl(3000);
   }
 
   fireAtAngle(angle: number, speed = 200): void {
     this.setVelocity(Math.cos(angle) * speed, Math.sin(angle) * speed);
     this.aimAlong(angle);
-    this.scene.time.delayedCall(3000, () => {
+    this.scheduleTtl(3000);
+  }
+
+  private scheduleTtl(delayMs: number): void {
+    this.clearTtl();
+    this.ttlTimer = window.setTimeout(() => {
+      this.ttlTimer = 0;
       if (this.active) this.destroy();
-    });
+    }, delayMs);
+  }
+
+  private clearTtl(): void {
+    if (!this.ttlTimer) return;
+    window.clearTimeout(this.ttlTimer);
+    this.ttlTimer = 0;
+  }
+
+  destroy(fromScene?: boolean): void {
+    this.clearTtl();
+    super.destroy(fromScene);
   }
 }
 

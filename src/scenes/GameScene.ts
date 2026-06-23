@@ -89,6 +89,9 @@ function getPauseContentLayout(hasBorder: boolean) {
 
 const MOBILE_WAVE_GAP_MS = 400;
 const DESKTOP_WAVE_GAP_MS = 2000;
+const MOBILE_HEARTBEAT_MS = 400;
+const MOBILE_STALE_UPDATE_MS = 700;
+const MOBILE_MAX_PROJECTILES = 28;
 
 
 export default class GameScene extends Phaser.Scene {
@@ -136,6 +139,11 @@ export default class GameScene extends Phaser.Scene {
   private mobileDashStuckSinceMs = 0;
   private mobileWaveTimerWatchMs = 0;
   private mobileWaveTimerLastValue = -1;
+  private mobileHeartbeatId = 0;
+  private mobileLastUpdateAt = 0;
+  private mobileStuckSampleMs = 0;
+  private mobileStuckSampleX = 0;
+  private mobileStuckSampleY = 0;
   private bossMusic?: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
   private bossMusicVolumeTween?: Phaser.Tweens.Tween;
   private levelMusic?: LevelMusicHandle;
@@ -157,10 +165,13 @@ export default class GameScene extends Phaser.Scene {
     this.nextLevelHandoffStarted = false;
     this.clearAllRealtimeTimers();
     this.clearMobileExitRaf();
+    this.stopMobileHeartbeat();
     this.mobileWallClockLastMs = 0;
     this.mobileDashStuckSinceMs = 0;
     this.mobileWaveTimerWatchMs = 0;
     this.mobileWaveTimerLastValue = -1;
+    this.mobileLastUpdateAt = 0;
+    this.mobileStuckSampleMs = 0;
     this.registry.set('characterId', this.characterId);
     this.registry.set('levelIndex', this.levelIndex);
   }
@@ -280,9 +291,13 @@ export default class GameScene extends Phaser.Scene {
     if (this.levelIndex === 0) {
       void startDeferredAssetLoad(this.game);
       void ensureCharacterSelectAssets(this);
+    } else if (this.levelIndex >= 1) {
+      void startDeferredAssetLoad(this.game);
     }
 
     if (isMobileTouchDevice()) {
+      this.mobileLastUpdateAt = performance.now();
+      this.startMobileHeartbeat();
       const onVisible = (): void => {
         if (document.hidden) return;
         this.mobileWallClockLastMs = 0;
@@ -331,6 +346,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
+    this.stopMobileHeartbeat();
     this.clearMobileExitRaf();
     this.clearAllRealtimeTimers();
     this.stopAllGameAudio();
@@ -518,6 +534,136 @@ export default class GameScene extends Phaser.Scene {
     this.mobileDashStuckSinceMs = 0;
     this.mobileWaveTimerWatchMs = 0;
     this.mobileWaveTimerLastValue = -1;
+    this.mobileLastUpdateAt = 0;
+    this.mobileStuckSampleMs = 0;
+  }
+
+  private startMobileHeartbeat(): void {
+    if (!isMobileTouchDevice()) return;
+    this.stopMobileHeartbeat();
+    this.mobileHeartbeatId = window.setInterval(() => this.mobileHeartbeat(), MOBILE_HEARTBEAT_MS);
+  }
+
+  private stopMobileHeartbeat(): void {
+    if (this.mobileHeartbeatId === 0) return;
+    window.clearInterval(this.mobileHeartbeatId);
+    this.mobileHeartbeatId = 0;
+  }
+
+  /** Runs on wall clock — recovers when Phaser update / physics stall but audio keeps playing. */
+  private mobileHeartbeat(): void {
+    if (!this.scene.isActive() || this.exitingToMenu) return;
+
+    this.recoverMobileGameplayState();
+    this.ensureMobileWaveProgress();
+
+    const staleMs = performance.now() - this.mobileLastUpdateAt;
+    if (staleMs >= MOBILE_STALE_UPDATE_MS) {
+      this.tickMobileCatchUp(Math.min(50, staleMs));
+    } else {
+      this.watchMobilePlayerStuck();
+    }
+  }
+
+  private restoreMobileTouchControls(): void {
+    if (!this.mobileControls || !isMobileTouchDevice()) return;
+    if ((this.paused && this.pauseOverlay.visible) || isControlsModalOpen(this)) return;
+    if (this.levelExitActive || this.levelTransitioning || this.gameEnding) return;
+    this.mobileControls.setOverlayVisible(true);
+    this.mobileControls.setEnabled(true);
+  }
+
+  private watchMobilePlayerStuck(): void {
+    if (!this.player || this.paused || this.gameEnding || this.levelTransitioning || this.levelExitActive) {
+      this.mobileStuckSampleMs = 0;
+      return;
+    }
+
+    const movement = this.inputManager?.lastMovement ?? { x: 0, y: 0 };
+    if (Math.hypot(movement.x, movement.y) < 0.12) {
+      this.mobileStuckSampleMs = 0;
+      return;
+    }
+
+    const now = performance.now();
+    if (this.mobileStuckSampleMs <= 0) {
+      this.mobileStuckSampleMs = now;
+      this.mobileStuckSampleX = this.player.x;
+      this.mobileStuckSampleY = this.player.y;
+      return;
+    }
+
+    const moved = Phaser.Math.Distance.Between(
+      this.mobileStuckSampleX,
+      this.mobileStuckSampleY,
+      this.player.x,
+      this.player.y,
+    );
+    if (moved >= 3) {
+      this.mobileStuckSampleMs = now;
+      this.mobileStuckSampleX = this.player.x;
+      this.mobileStuckSampleY = this.player.y;
+      return;
+    }
+
+    if (now - this.mobileStuckSampleMs < 900) return;
+
+    this.forceGameplayClockRunning();
+    this.restoreMobileTouchControls();
+    const step = 0.034;
+    this.player.x += movement.x * this.player.moveSpeed * step;
+    this.player.y += movement.y * this.player.moveSpeed * step;
+    this.clampEntity(this.player);
+    this.mobileStuckSampleMs = now;
+    this.mobileStuckSampleX = this.player.x;
+    this.mobileStuckSampleY = this.player.y;
+  }
+
+  private tickMobileCatchUp(deltaMs: number): void {
+    if (this.paused || this.gameEnding || this.levelTransitioning || this.levelExitActive) return;
+
+    if (this.scene.isPaused()) {
+      this.scene.resume();
+    }
+
+    this.forceGameplayClockRunning();
+    this.restoreMobileTouchControls();
+    this.inputManager?.update();
+
+    const stepDelta = Math.min(50, Math.max(16, deltaMs));
+    const movement = this.inputManager?.lastMovement ?? { x: 0, y: 0 };
+
+    this.mobileControls?.update(this.player);
+    this.player.updateMovement(movement);
+    this.playerWalkingSfx.update(this.player, movement, true);
+    this.waveManager?.update(stepDelta / 1000);
+
+    this.enemies.getChildren().forEach((e) => {
+      const enemy = e as Enemy;
+      if (!enemy.active || enemy.isDead) return;
+      enemy.updateAI(this.player, this.obstacles, this.enemies);
+      this.clampEntity(enemy);
+    });
+
+    this.clampEntity(this.player);
+    this.pruneExcessProjectiles();
+
+    if (this.physics.world.isPaused) {
+      this.physics.resume();
+    }
+    this.physics.world.step(stepDelta / 1000);
+
+    this.mobileWallClockLastMs = performance.now();
+  }
+
+  private pruneExcessProjectiles(): void {
+    if (!isMobileTouchDevice()) return;
+    const active = this.projectiles.getChildren().filter((p) => (p as Projectile).active);
+    if (active.length <= MOBILE_MAX_PROJECTILES) return;
+    const excess = active.length - MOBILE_MAX_PROJECTILES;
+    for (let i = 0; i < excess; i += 1) {
+      (active[i] as Projectile).destroy();
+    }
   }
 
   /** Wall-clock timers — survive Phaser timeScale stalls on mobile WebKit. */
@@ -562,6 +708,20 @@ export default class GameScene extends Phaser.Scene {
       this.clearMobileBossExitForceComplete();
     }
 
+    if (
+      this.levelTransitioning &&
+      !this.nextLevelHandoffStarted &&
+      !this.levelExitActive &&
+      !this.bossActive &&
+      !this.gameEnding
+    ) {
+      this.levelTransitioning = false;
+    }
+
+    if (this.scene.isPaused()) {
+      this.scene.resume();
+    }
+
     const intentionalPause = this.paused && this.pauseOverlay.visible;
     if (!intentionalPause) {
       if (this.paused) {
@@ -585,7 +745,7 @@ export default class GameScene extends Phaser.Scene {
       !this.levelTransitioning &&
       !isControlsModalOpen(this)
     ) {
-      this.mobileControls.setEnabled(true);
+      this.restoreMobileTouchControls();
     }
 
     if (this.player?.isDashing) {
@@ -995,6 +1155,10 @@ export default class GameScene extends Phaser.Scene {
 
     if (this.levelTransitioning || this.gameEnding) return;
 
+    if (isMobileTouchDevice()) {
+      this.pruneExcessProjectiles();
+    }
+
     const movement = this.inputManager.lastMovement;
 
     this.mobileControls?.update(this.player);
@@ -1042,6 +1206,9 @@ export default class GameScene extends Phaser.Scene {
       });
     }
 
+    if (isMobileTouchDevice()) {
+      this.mobileLastUpdateAt = performance.now();
+    }
   }
 
   onBossDefeated(): void {
