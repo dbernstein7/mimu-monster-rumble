@@ -150,10 +150,20 @@ export default class GameScene extends Phaser.Scene {
     let openedPauseForControls = false;
     mountControlsButton(this, {
       onOpen: () => {
+        if (isMobileTouchDevice()) {
+          this.mobileControls?.setEnabled(false);
+          return;
+        }
         openedPauseForControls = !this.paused;
         if (!this.paused) this.setPaused(true, { silent: true });
       },
       onClose: () => {
+        if (isMobileTouchDevice()) {
+          if (!this.paused && !this.gameEnding && !this.exitingToMenu) {
+            this.mobileControls?.setEnabled(true);
+          }
+          return;
+        }
         if (openedPauseForControls) this.setPaused(false, { silent: true });
         openedPauseForControls = false;
       },
@@ -398,6 +408,12 @@ export default class GameScene extends Phaser.Scene {
         }
       } else if (dist < touchReach && this.contactTimer <= 0) {
         const contactDmg = enemy.isBoss ? 1 : enemy.contactDamage;
+        if (isMobileTouchDevice() && dist > 0) {
+          const sep = Phaser.Math.Clamp((touchReach - dist + 4) * 0.35, 2, 10);
+          const angle = Phaser.Math.Angle.Between(enemy.x, enemy.y, this.player.x, this.player.y);
+          this.player.x += Math.cos(angle) * sep;
+          this.player.y += Math.sin(angle) * sep;
+        }
         if (this.player.takeDamage(contactDmg)) {
           this.gameOver();
           return;
@@ -848,6 +864,17 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameEnding) return;
     if (this.levelTransitioning && !won) return;
     this.gameEnding = true;
+
+    if (this.paused) {
+      this.time.timeScale = 1;
+      this.physics.resume();
+      this.tweens.resumeAll();
+      this.paused = false;
+      this.pauseOverlay.setVisible(false);
+      this.pauseMenuButtons.forEach((obj) => obj.setVisible(false));
+      this.mobileControls?.setEnabled(false);
+    }
+
     this.physics.pause();
     this.player.setVelocity(0, 0);
     this.enemies.getChildren().forEach((e) => {

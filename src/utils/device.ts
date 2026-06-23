@@ -59,10 +59,8 @@ function onMobileViewportChange(): void {
   window.clearTimeout(viewportChangeTimer);
   viewportChangeTimer = window.setTimeout(() => {
     syncMobileOrientationUi();
-    if (!isPortraitMobile()) {
-      refreshMobileGameScale();
-    }
-  }, 250);
+    refreshMobileGameScale();
+  }, 120);
 }
 
 export function bindMobileViewport(game?: PhaserGame): void {

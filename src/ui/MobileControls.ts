@@ -11,6 +11,7 @@ import { UI_COLORS } from './theme';
 import { isMobileTouchDevice } from '../utils/device';
 import { getMobileGameUiInsets } from '../utils/mobileLayout';
 import { unlockMobileAudio } from '../utils/audioUnlock';
+import { getControlsButtonPosition } from './controlsOverlay';
 
 const EDGE = 22;
 const JOYSTICK_MAX_DRAG = 62;
@@ -65,6 +66,18 @@ function getControlPositions(scene: Phaser.Scene): {
 
 function dist(x1: number, y1: number, x2: number, y2: number): number {
   return Math.hypot(x1 - x2, y1 - y2);
+}
+
+function isOnHudChrome(x: number, y: number, scene: Phaser.Scene): boolean {
+  const inset = getMobileGameUiInsets(scene);
+  const pauseX = inset.left + 24;
+  const pauseY = inset.top + 24;
+  if (dist(x, y, pauseX, pauseY) <= 28) return true;
+
+  const cog = getControlsButtonPosition(scene);
+  if (dist(x, y, cog.x, cog.y) <= 30) return true;
+
+  return false;
 }
 
 function isOnPowerButton(
@@ -163,7 +176,9 @@ export class MobileControls {
       unlockMobileAudio(this.scene.game);
       if (this.joystickPointerId !== null) return;
       if (isOnPowerButton(pointer.x, pointer.y, this.controlPos.ability, this.controlPos.secondary)) return;
+      if (isOnHudChrome(pointer.x, pointer.y, this.scene)) return;
 
+      pointer.event?.preventDefault();
       this.joystickPointerId = pointer.id;
       this.joystickOriginX = pointer.x;
       this.joystickOriginY = pointer.y;

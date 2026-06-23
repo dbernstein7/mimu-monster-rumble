@@ -79,6 +79,8 @@ export default class PreloadScene extends Phaser.Scene {
   }
 
   create(): void {
+    document.getElementById('boot-loader')?.classList.add('hidden');
+
     (Object.keys(CHARACTER_SPRITES) as CharacterId[]).forEach((id) => {
       registerCharacterAnimations(this, id);
     });
@@ -92,7 +94,6 @@ export default class PreloadScene extends Phaser.Scene {
     configureUiTextures(this);
     this.generateTextures();
     warmUpBossMusic(this);
-    document.getElementById('boot-loader')?.classList.add('hidden');
     this.scene.start('MainMenuScene');
   }
 

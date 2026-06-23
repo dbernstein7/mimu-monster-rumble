@@ -17,32 +17,6 @@ export interface GameUiInsets {
   left: number;
 }
 
-let safeAreaProbe: HTMLDivElement | undefined;
-
-function readSafeAreaInsetsPx(): { top: number; right: number; bottom: number; left: number } {
-  if (typeof document === 'undefined') {
-    return { top: 0, right: 0, bottom: 0, left: 0 };
-  }
-
-  if (!safeAreaProbe) {
-    safeAreaProbe = document.createElement('div');
-    safeAreaProbe.setAttribute('aria-hidden', 'true');
-    safeAreaProbe.style.cssText =
-      'position:fixed;visibility:hidden;pointer-events:none;padding:' +
-      'env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) ' +
-      'env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px)';
-    document.body.appendChild(safeAreaProbe);
-  }
-
-  const style = getComputedStyle(safeAreaProbe);
-  return {
-    top: parseFloat(style.paddingTop) || 0,
-    right: parseFloat(style.paddingRight) || 0,
-    bottom: parseFloat(style.paddingBottom) || 0,
-    left: parseFloat(style.paddingLeft) || 0,
-  };
-}
-
 /** Map the Phaser canvas to screen pixels (FIT letterbox aware). */
 export function getCanvasScreenRect(scene: Phaser.Scene): CanvasScreenRect | null {
   const canvas = scene.game.canvas;
@@ -60,23 +34,19 @@ export function getCanvasScreenRect(scene: Phaser.Scene): CanvasScreenRect | nul
   };
 }
 
-/** Insets inside 1280×720 space — keeps HUD / touch controls off notches & edges. */
+/** Insets inside 1280×720 space — keeps HUD / touch controls off edges. */
 export function getMobileGameUiInsets(scene: Phaser.Scene): GameUiInsets {
   if (!isMobileTouchDevice()) {
     return { top: 0, right: 0, bottom: 0, left: 0 };
   }
 
-  const screen = getCanvasScreenRect(scene);
-  const scale = screen?.scale ?? 1;
-  const safe = readSafeAreaInsetsPx();
-
-  const toGame = (px: number): number => px / scale;
-
+  // Safe-area is already applied on #game-container via CSS env(); avoid double-padding.
+  void scene;
   return {
-    top: Math.max(12, toGame(safe.top)) + 8,
-    right: Math.max(28, toGame(safe.right)) + 20,
-    bottom: Math.max(32, toGame(safe.bottom)) + 24,
-    left: Math.max(12, toGame(safe.left)) + 8,
+    top: 12,
+    right: 18,
+    bottom: 18,
+    left: 12,
   };
 }
 

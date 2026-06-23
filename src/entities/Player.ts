@@ -5,6 +5,7 @@ import { getCharacterSpriteConfig, getPlayerTextureKey, hasCharacterSprite } fro
 import { updatePlayerAnimation } from '../systems/PlayerAnimation';
 import { attachGroundShadow, shadowFromFeet } from './GroundShadow';
 import { attachPlayerSpotlight } from '../utils/playerSpotlight';
+import { isMobileTouchDevice } from '../utils/device';
 type Facing = 'down' | 'up' | 'left' | 'right';
 
 export class Player extends Phaser.Physics.Arcade.Sprite {
@@ -97,7 +98,9 @@ export class Player extends Phaser.Physics.Arcade.Sprite {
     this.hp = Math.max(0, this.hp - amount);
     this.setTint(0xff0000);
     this.scene.time.delayedCall(150, () => this.clearTint());
-    this.scene.cameras.main.shake(100, 0.005);
+    if (!isMobileTouchDevice()) {
+      this.scene.cameras.main.shake(100, 0.005);
+    }
     return this.hp <= 0;
   }
 

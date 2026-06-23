@@ -2,7 +2,6 @@ import Phaser from 'phaser';
 import { CONTROLS_TEXTURE_KEY, hasControlsTexture } from '../assets/uiAssets';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config/gameConstants';
 import { isMobileTouchDevice } from '../utils/device';
-import { getMobileGameUiInsets } from '../utils/mobileLayout';
 import { createIconButton, UI_COLORS, UI_FONTS } from './theme';
 import { setCharacterSelectBackVisible } from './characterSelectOverlay';
 
@@ -53,22 +52,15 @@ function attachControlsHoverTooltip(
 
 export interface ControlsButtonOptions {
   depth?: number;
-  /** Pause gameplay while the controls panel is open (GameScene). */
+  /** Pause gameplay while the controls panel is open (GameScene desktop only). */
   onOpen?: () => void;
   onClose?: () => void;
 }
 
 const modalByScene = new WeakMap<Phaser.Scene, Phaser.GameObjects.Container>();
 
-export function getControlsButtonPosition(scene: Phaser.Scene): { x: number; y: number } {
-  if (isMobileTouchDevice()) {
-    const inset = getMobileGameUiInsets(scene);
-    return {
-      x: inset.left + BUTTON_PAD + BUTTON_SIZE / 2,
-      y: GAME_HEIGHT - inset.bottom - BUTTON_PAD - BUTTON_SIZE / 2,
-    };
-  }
-
+/** Bottom-left of the 1280×720 playfield — same on desktop and mobile. */
+export function getControlsButtonPosition(_scene?: Phaser.Scene): { x: number; y: number } {
   return {
     x: BUTTON_PAD + BUTTON_SIZE / 2,
     y: GAME_HEIGHT - BUTTON_PAD - BUTTON_SIZE / 2,
@@ -90,17 +82,18 @@ function openControlsModal(scene: Phaser.Scene, onClose?: () => void): void {
 
   setCharacterSelectBackVisible(false);
 
+  const mobile = isMobileTouchDevice();
   const modal = scene.add.container(0, 0).setScrollFactor(0).setDepth(MODAL_DEPTH);
   modalByScene.set(scene, modal);
 
   const blocker = scene.add
-    .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.78)
-    .setInteractive();
+    .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, mobile ? 0.82 : 0.78)
+    .setInteractive({ useHandCursor: false });
 
   const panel = scene.add.graphics();
   const image = scene.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, CONTROLS_TEXTURE_KEY).setOrigin(0.5);
-  const maxW = GAME_WIDTH * 0.9;
-  const maxH = GAME_HEIGHT * 0.86;
+  const maxW = GAME_WIDTH * (mobile ? 0.94 : 0.9);
+  const maxH = GAME_HEIGHT * (mobile ? 0.78 : 0.86);
   const imageScale = Math.min(maxW / image.width, maxH / image.height);
   image.setScale(imageScale);
 
@@ -123,23 +116,53 @@ function openControlsModal(scene: Phaser.Scene, onClose?: () => void): void {
     12,
   );
 
-  const closeLabel = scene.add
-    .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + panelH / 2 + 22, 'Tap anywhere to close', {
-      fontFamily: UI_FONTS.body,
-      fontSize: '14px',
-      color: '#a89bc4',
-      fontStyle: 'bold',
-    })
-    .setOrigin(0.5);
-
   const dismiss = (): void => closeControlsModal(scene, onClose);
-  blocker.on('pointerdown', dismiss);
-  image.setInteractive({ useHandCursor: true });
-  image.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+
+  const closeBtn = scene.add
+    .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - panelH / 2 - 18, mobile ? '✕ CLOSE' : '✕', {
+      fontFamily: UI_FONTS.body,
+      fontSize: mobile ? '18px' : '16px',
+      color: '#ffc857',
+      fontStyle: 'bold',
+      backgroundColor: '#2e1a4e',
+      padding: { x: mobile ? 14 : 10, y: mobile ? 8 : 6 },
+    })
+    .setOrigin(0.5)
+    .setInteractive({ useHandCursor: !mobile });
+
+  closeBtn.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
     pointer.event.stopPropagation();
+    dismiss();
   });
 
-  modal.add([blocker, panel, image, closeLabel]);
+  const closeLabel = scene.add
+    .text(
+      GAME_WIDTH / 2,
+      GAME_HEIGHT / 2 + panelH / 2 + 22,
+      mobile ? 'Tap CLOSE or anywhere outside the image' : 'Tap anywhere to close',
+      {
+        fontFamily: UI_FONTS.body,
+        fontSize: mobile ? '13px' : '14px',
+        color: '#a89bc4',
+        fontStyle: 'bold',
+        align: 'center',
+        wordWrap: { width: GAME_WIDTH - 80 },
+      },
+    )
+    .setOrigin(0.5);
+
+  blocker.on('pointerdown', dismiss);
+
+  if (mobile) {
+    image.setInteractive({ useHandCursor: false });
+  } else {
+    image.setInteractive({ useHandCursor: true });
+    image.on('pointerdown', (pointer: Phaser.Input.Pointer) => {
+      pointer.event.stopPropagation();
+    });
+  }
+
+  modal.add([blocker, panel, image, closeBtn, closeLabel]);
 }
 
 function openControlsPanel(scene: Phaser.Scene, options?: ControlsButtonOptions): void {
@@ -154,13 +177,12 @@ export function mountControlsButton(
 ): Phaser.GameObjects.Container | null {
   if (!hasControlsTexture(scene)) return null;
 
-  const { x, y } = getControlsButtonPosition(scene);
-  const depth = options.depth ?? BUTTON_DEPTH;
+  const depth = options.depth ?? (isMobileTouchDevice() ? 950 : BUTTON_DEPTH);
 
   const button = createIconButton(
     scene,
-    x,
-    y,
+    0,
+    0,
     '⚙',
     () => {
       if (modalByScene.has(scene)) {
@@ -173,6 +195,19 @@ export function mountControlsButton(
   );
   button.setScrollFactor(0).setDepth(depth);
   attachControlsHoverTooltip(scene, button);
+
+  const reposition = (): void => {
+    const { x, y } = getControlsButtonPosition(scene);
+    button.setPosition(x, y);
+  };
+  reposition();
+
+  if (isMobileTouchDevice()) {
+    scene.scale.on('resize', reposition);
+    scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      scene.scale.off('resize', reposition);
+    });
+  }
 
   scene.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
     closeControlsModal(scene);
