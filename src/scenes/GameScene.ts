@@ -16,7 +16,7 @@ import { PlayerWalkingSfx } from '../systems/PlayerWalkingSfx';
 import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
-import { isMobileTouchDevice } from '../utils/device';
+import { isMobileTouchDevice, prepareMobileSceneHandoff } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
@@ -25,7 +25,6 @@ import {
   startSceneNextTick,
   GAME_OVER_SCENE_KEY,
   CHARACTER_SELECT_SCENE_KEY,
-  launchSceneNow,
 } from '../utils/sceneNav';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
 import { dismissControlsModal } from '../ui/controlsOverlay';
@@ -119,8 +118,6 @@ export default class GameScene extends Phaser.Scene {
   private levelExitRealtimeSafety?: number;
   private victoryRealtimeSafety?: number;
   private levelAdvanceRealtimeSafety?: number;
-  private mobileExitRafId = 0;
-  private mobileExitLastTs = 0;
   private bossMusic?: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
   private bossMusicVolumeTween?: Phaser.Tweens.Tween;
   private levelMusic?: LevelMusicHandle;
@@ -288,7 +285,6 @@ export default class GameScene extends Phaser.Scene {
   }
 
   shutdown(): void {
-    this.clearMobileExitRaf();
     this.clearLevelExitRealtimeSafety();
     this.clearVictoryRealtimeSafety();
     this.clearLevelAdvanceRealtimeSafety();
@@ -482,13 +478,6 @@ export default class GameScene extends Phaser.Scene {
     this.player.setVelocity(0, 0);
   }
 
-  private clearMobileExitRaf(): void {
-    if (this.mobileExitRafId !== 0) {
-      cancelAnimationFrame(this.mobileExitRafId);
-      this.mobileExitRafId = 0;
-    }
-  }
-
   private clearLevelExitRealtimeSafety(): void {
     if (this.levelExitRealtimeSafety !== undefined) {
       clearTimeout(this.levelExitRealtimeSafety);
@@ -653,7 +642,7 @@ export default class GameScene extends Phaser.Scene {
         }
       };
       if (isMobileTouchDevice()) {
-        triggerBossDefeat();
+        this.time.delayedCall(0, triggerBossDefeat);
       } else {
         window.setTimeout(triggerBossDefeat, 0);
       }
@@ -822,8 +811,15 @@ export default class GameScene extends Phaser.Scene {
     if (isMobileTouchDevice()) {
       document.getElementById('game-container')?.classList.remove('mobile-hidden');
       this.input.resetPointers();
+      if (this.paused) {
+        this.setPaused(false);
+      }
+      this.time.timeScale = 1;
+      this.physics.resume();
+      this.tweens.resumeAll();
+    } else {
+      this.forceGameplayClockRunning();
     }
-    this.forceGameplayClockRunning();
 
     this.bossActive = false;
     this.waveManager.waveActive = false;
@@ -859,81 +855,11 @@ export default class GameScene extends Phaser.Scene {
     [...this.projectiles.getChildren()].forEach((p) => p.destroy());
 
     this.levelExitActive = true;
-    if (isMobileTouchDevice()) {
-      this.revealExitFloorInstant();
-    } else {
-      this.revealExitFloor();
-    }
+    this.revealExitFloor();
     const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
-    if (isMobileTouchDevice()) {
-      this.startMobileLevelExitLoop();
-    }
     this.scheduleLevelExitSafetyFinish(5000);
-  }
-
-  private revealExitFloorInstant(): void {
-    const level = getLevel(this.levelIndex);
-    if (!hasFloorTexture(this, level.id, 'exit')) return;
-
-    this.floorSprite?.destroy();
-    const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
-    exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-    exitFloor.setDepth(1);
-    exitFloor.setAlpha(1);
-    this.floorSprite = exitFloor;
-  }
-
-  /** Mobile: wall-clock walk — does not depend on Phaser update, physics, or timeScale. */
-  private startMobileLevelExitLoop(): void {
-    if (!this.exitGateTarget) return;
-
-    this.clearMobileExitRaf();
-    this.mobileExitLastTs = performance.now();
-    const walkStartedAt = this.mobileExitLastTs;
-    const maxWalkMs = 4500;
-
-    const tick = (now: number): void => {
-      if (!this.scene.isActive() || this.levelTransitioning || this.gameEnding || !this.levelExitActive) {
-        this.clearMobileExitRaf();
-        return;
-      }
-
-      if (!this.exitGateTarget) {
-        this.clearMobileExitRaf();
-        return;
-      }
-
-      const frameDelta = Math.min(48, Math.max(8, now - this.mobileExitLastTs));
-      this.mobileExitLastTs = now;
-
-      const target = this.exitGateTarget;
-      const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
-
-      if (dist < 16 || now - walkStartedAt >= maxWalkMs) {
-        this.clearMobileExitRaf();
-        this.finishLevelExit();
-        return;
-      }
-
-      const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
-      const walk = { x: Math.cos(angle), y: Math.sin(angle) };
-      const step = Math.min(dist, this.player.moveSpeed * (frameDelta / 16.67));
-      this.player.x += walk.x * step;
-      this.player.y += walk.y * step;
-      this.player.setVelocity(0, 0);
-      const body = this.player.body as Phaser.Physics.Arcade.Body | null;
-      body?.updateFromGameObject();
-
-      this.player.updateVisuals(walk);
-      this.playerWalkingSfx.update(this.player, walk, true);
-      this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
-
-      this.mobileExitRafId = requestAnimationFrame(tick);
-    };
-
-    this.mobileExitRafId = requestAnimationFrame(tick);
   }
 
   private revealExitFloor(): void {
@@ -968,10 +894,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private updateLevelExit(_delta: number): void {
-    if (isMobileTouchDevice()) return;
     if (!this.exitGateTarget) return;
-
-    this.forceGameplayClockRunning();
 
     const target = this.exitGateTarget;
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
@@ -993,16 +916,22 @@ export default class GameScene extends Phaser.Scene {
   private finishLevelExit(): void {
     if (this.levelTransitioning || this.gameEnding) return;
 
-    this.clearMobileExitRaf();
     this.clearLevelExitRealtimeSafety();
     this.tweens.killTweensOf(this.player);
-    this.forceGameplayClockRunning();
 
     this.levelExitActive = false;
     this.playerWalkingSfx.stop();
     this.player.setVelocity(0, 0);
     this.exitGateTarget = undefined;
     this.mobileControls?.setEnabled(false);
+
+    const isFinalLevel = this.levelIndex >= LEVELS.length - 1;
+    if (isFinalLevel) {
+      this.registry.remove('runScore');
+      this.registry.remove('runCoins');
+      this.time.delayedCall(800, () => this.gameOver(true));
+      return;
+    }
 
     this.levelTransitioning = true;
     this.registry.set('runScore', this.player.score);
@@ -1015,6 +944,27 @@ export default class GameScene extends Phaser.Scene {
       .setDepth(400);
 
     const fadeDurationMs = 350;
+
+    if (isMobileTouchDevice()) {
+      if (this.paused) {
+        this.setPaused(false);
+      }
+      this.time.timeScale = 1;
+      this.physics.resume();
+      this.tweens.resumeAll();
+
+      this.tweens.add({
+        targets: fadeOut,
+        alpha: 1,
+        duration: fadeDurationMs,
+        ease: 'Cubic.easeIn',
+        onComplete: () => this.goToNextLevel(),
+      });
+      return;
+    }
+
+    this.forceGameplayClockRunning();
+
     const fadeStartedAt = performance.now();
     let fadeDone = false;
 
@@ -1024,15 +974,13 @@ export default class GameScene extends Phaser.Scene {
       this.goToNextLevel();
     };
 
-    if (!isMobileTouchDevice()) {
-      this.tweens.add({
-        targets: fadeOut,
-        alpha: 1,
-        duration: fadeDurationMs,
-        ease: 'Cubic.easeIn',
-        onComplete: completeFade,
-      });
-    }
+    this.tweens.add({
+      targets: fadeOut,
+      alpha: 1,
+      duration: fadeDurationMs,
+      ease: 'Cubic.easeIn',
+      onComplete: completeFade,
+    });
 
     const tickFade = (): void => {
       if (fadeDone || !this.scene.isActive()) return;
@@ -1056,6 +1004,34 @@ export default class GameScene extends Phaser.Scene {
     if (this.gameEnding) return;
 
     const nextLevelIndex = this.levelIndex + 1;
+
+    if (isMobileTouchDevice()) {
+      this.clearLevelAdvanceRealtimeSafety();
+      dismissControlsModal(this);
+      destroyCharacterSelectOverlay();
+      prepareMobileSceneHandoff(this.game);
+      this.input.resetPointers();
+      if (this.paused) {
+        this.setPaused(false);
+      }
+      this.time.timeScale = 1;
+      this.physics.resume();
+      this.tweens.resumeAll();
+
+      if (this.levelIndex === 0) {
+        this.scene.start(CHARACTER_SELECT_SCENE_KEY, {
+          levelIndex: nextLevelIndex,
+          continueRun: true,
+        });
+      } else {
+        this.scene.start('GameScene', {
+          characterId: this.characterId,
+          levelIndex: nextLevelIndex,
+        });
+      }
+      return;
+    }
+
     const nextSceneKey = this.levelIndex === 0 ? CHARACTER_SELECT_SCENE_KEY : 'GameScene';
     if (this.game.scene.isActive(nextSceneKey)) {
       return;
@@ -1070,24 +1046,6 @@ export default class GameScene extends Phaser.Scene {
       this.levelIndex === 0
         ? { levelIndex: nextLevelIndex, continueRun: true }
         : { characterId: this.characterId, levelIndex: nextLevelIndex };
-
-    if (isMobileTouchDevice()) {
-      document.getElementById('game-container')?.classList.remove('mobile-hidden');
-      this.input.resetPointers();
-      launchSceneNow(this.game, nextSceneKey, payload);
-      this.levelAdvanceRealtimeSafety = window.setTimeout(() => {
-        this.levelAdvanceRealtimeSafety = undefined;
-        if (!this.game.scene.isActive(nextSceneKey)) {
-          launchSceneNow(this.game, nextSceneKey, payload);
-        }
-      }, 250);
-      window.setTimeout(() => {
-        if (!this.game.scene.isActive(nextSceneKey)) {
-          startSceneNextTick(this.game, nextSceneKey, payload, 0);
-        }
-      }, 900);
-      return;
-    }
 
     startSceneNextTick(this.game, nextSceneKey, payload, 0);
     this.levelAdvanceRealtimeSafety = window.setTimeout(() => {
@@ -1119,15 +1077,9 @@ export default class GameScene extends Phaser.Scene {
     };
 
     if (isMobileTouchDevice()) {
-      this.clearMobileExitRaf();
-      this.mobileControls?.setOverlayVisible(false);
-      launchSceneNow(this.game, GAME_OVER_SCENE_KEY, payload);
-      this.victoryRealtimeSafety = window.setTimeout(() => {
-        this.victoryRealtimeSafety = undefined;
-        if (!this.game.scene.isActive(GAME_OVER_SCENE_KEY)) {
-          launchSceneNow(this.game, GAME_OVER_SCENE_KEY, payload);
-        }
-      }, 300);
+      prepareMobileSceneHandoff(this.game);
+      this.input.resetPointers();
+      this.scene.start(GAME_OVER_SCENE_KEY, payload);
       return;
     }
 
