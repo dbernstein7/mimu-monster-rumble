@@ -27,6 +27,7 @@ import {
   CHARACTER_SELECT_SCENE_KEY,
 } from '../utils/sceneNav';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
+import { dismissControlsModal } from '../ui/controlsOverlay';
 import { getCurrentUser, submitScore, waitForAuthReady } from '../services/firebase';
 import { bankRunCoins, getCachedProfile, loadUserProfile } from '../services/userProfile';
 import { RUN_MIMU1_KEY } from '../utils/runState';
@@ -111,13 +112,13 @@ export default class GameScene extends Phaser.Scene {
   arenaBoundsActive = false;
   levelExitActive = false;
   private gameEnding = false;
-  private bossDefeatHandled = false;
   private floorSprite?: Phaser.GameObjects.Image;
   private exitGateTarget?: Phaser.Math.Vector2;
   private playerObstacleCollider?: Phaser.Physics.Arcade.Collider;
   private levelExitRealtimeSafety?: number;
   private victoryRealtimeSafety?: number;
   private levelAdvanceRealtimeSafety?: number;
+  private nextLevelSceneStarted = false;
   private bossMusic?: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
   private bossMusicVolumeTween?: Phaser.Tweens.Tween;
   private levelMusic?: LevelMusicHandle;
@@ -134,7 +135,7 @@ export default class GameScene extends Phaser.Scene {
     this.levelTransitioning = false;
     this.levelExitActive = false;
     this.gameEnding = false;
-    this.bossDefeatHandled = false;
+    this.nextLevelSceneStarted = false;
     this.paused = false;
     this.exitingToMenu = false;
     this.registry.set('characterId', this.characterId);
@@ -369,16 +370,16 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private handleEnemyKill(enemy: Enemy): void {
-    if (this.bossDefeatHandled || this.levelTransitioning || this.levelExitActive || this.gameEnding) return;
+    if (this.levelTransitioning || this.levelExitActive || this.gameEnding) return;
     this.onEnemyKilled(enemy);
   }
 
   private isCombatSuspended(): boolean {
-    return this.gameEnding || this.levelTransitioning || this.levelExitActive || this.bossDefeatHandled;
+    return this.gameEnding || this.levelTransitioning || this.levelExitActive;
   }
 
   private resolveConfusedEnemyCombat(delta: number): void {
-    if (this.bossDefeatHandled || this.gameEnding) return;
+    if (this.gameEnding || this.levelExitActive) return;
     const enemies = [...this.enemies.getChildren()] as Enemy[];
 
     for (const attacker of enemies) {
@@ -404,7 +405,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   private applyCombatDamage(delta: number): void {
-    if (this.gameEnding || this.bossDefeatHandled) return;
+    if (this.gameEnding || this.levelExitActive) return;
 
     const attackDamage = this.player.damage * 0.05 * (delta / 16.67);
     const enemies = [...this.enemies.getChildren()] as Enemy[];
@@ -597,7 +598,7 @@ export default class GameScene extends Phaser.Scene {
   }
 
   onEnemyKilled(enemy: Enemy): void {
-    if (!enemy.active || this.bossDefeatHandled || this.levelTransitioning || this.levelExitActive || this.gameEnding) {
+    if (!enemy.active || this.levelTransitioning || this.levelExitActive || this.gameEnding) {
       return;
     }
 
@@ -634,9 +635,11 @@ export default class GameScene extends Phaser.Scene {
     pruneEnemyMovementSfx(this, this.enemies);
 
     if (wasBoss) {
-      if (!this.bossDefeatHandled) {
-        this.onBossDefeated();
-      }
+      window.setTimeout(() => {
+        if (!this.levelTransitioning && !this.levelExitActive && !this.gameEnding) {
+          this.onBossDefeated();
+        }
+      }, 0);
     }
   }
 
@@ -738,14 +741,12 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
-    if (this.gameEnding) return;
+    if (this.levelTransitioning || this.gameEnding) return;
 
-    if (this.levelExitActive && !this.levelTransitioning) {
-      this.updateLevelExit(this.game.loop.delta);
+    if (this.levelExitActive) {
+      this.updateLevelExit(delta);
       return;
     }
-
-    if (this.levelTransitioning) return;
 
     const movement = this.inputManager.lastMovement;
 
@@ -782,9 +783,7 @@ export default class GameScene extends Phaser.Scene {
 
     this.applyCombatDamage(delta);
 
-    if (!this.bossDefeatHandled) {
-      this.secondaryProjectileSystem.update(this.enemies);
-    }
+    this.secondaryProjectileSystem.update(this.enemies);
 
     if (this.player.coinMagnetActive) {
       this.coins.getChildren().forEach((c) => {
@@ -799,19 +798,21 @@ export default class GameScene extends Phaser.Scene {
   }
 
   onBossDefeated(): void {
-    if (this.bossDefeatHandled || this.levelTransitioning || this.levelExitActive || this.gameEnding) return;
-    this.bossDefeatHandled = true;
+    if (this.levelTransitioning || this.levelExitActive || this.gameEnding) return;
+
+    dismissControlsModal(this);
+    destroyCharacterSelectOverlay();
     this.forceGameplayClockRunning();
 
     this.bossActive = false;
     this.waveManager.waveActive = false;
     this.waveManager.enemiesRemaining = 0;
 
+    const isFinalLevel = this.levelIndex >= LEVELS.length - 1;
     this.levelCompleteBanner
-      .setText(this.levelIndex >= LEVELS.length - 1 ? 'YOU WIN!' : 'LEVEL COMPLETE!')
+      .setText(isFinalLevel ? 'YOU WIN!' : 'LEVEL COMPLETE!')
       .setVisible(true);
 
-    const isFinalLevel = this.levelIndex >= LEVELS.length - 1;
     if (isFinalLevel) {
       this.registry.remove('runScore');
       this.registry.remove('runCoins');
@@ -836,16 +837,46 @@ export default class GameScene extends Phaser.Scene {
     [...this.playerProjectiles.getChildren()].forEach((p) => p.destroy());
     [...this.projectiles.getChildren()].forEach((p) => p.destroy());
 
-    this.revealExitFloorInstant();
-
-    const gate = getArenaExitGatePosition();
     this.levelExitActive = true;
+    this.revealExitFloor();
+    const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
-    this.scheduleLevelExitSafetyFinish(4500);
+    this.scheduleLevelExitSafetyFinish(5000);
   }
 
-  private updateLevelExit(delta: number): void {
+  private revealExitFloor(): void {
+    const level = getLevel(this.levelIndex);
+    if (!hasFloorTexture(this, level.id, 'exit')) return;
+
+    this.floorSprite?.destroy();
+    const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
+    exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    exitFloor.setDepth(1);
+    exitFloor.setAlpha(0);
+
+    this.tweens.add({
+      targets: exitFloor,
+      alpha: 1,
+      duration: 750,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.floorSprite?.destroy();
+        this.floorSprite = exitFloor;
+      },
+    });
+
+    window.setTimeout(() => {
+      if (!this.scene.isActive() || !exitFloor.active) return;
+      if (exitFloor.alpha < 1) {
+        exitFloor.setAlpha(1);
+        this.floorSprite?.destroy();
+        this.floorSprite = exitFloor;
+      }
+    }, 850);
+  }
+
+  private updateLevelExit(_delta: number): void {
     if (!this.exitGateTarget) return;
 
     this.forceGameplayClockRunning();
@@ -853,22 +884,18 @@ export default class GameScene extends Phaser.Scene {
     const target = this.exitGateTarget;
     const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
 
-    if (dist < 20) {
+    if (dist < 16) {
       this.finishLevelExit();
       return;
     }
 
-    const frameDelta = delta > 0 ? delta : 16.67;
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
-    const step = Math.min(dist, this.player.moveSpeed * (frameDelta / 16.67));
-    this.player.x += Math.cos(angle) * step;
-    this.player.y += Math.sin(angle) * step;
-    this.player.setVelocity(0, 0);
-
     const walk = { x: Math.cos(angle), y: Math.sin(angle) };
+    this.player.setVelocity(walk.x * this.player.moveSpeed, walk.y * this.player.moveSpeed);
     this.player.updateVisuals(walk);
     this.playerWalkingSfx.update(this.player, walk, true);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
+    this.mobileControls?.update(this.player);
   }
 
   private finishLevelExit(): void {
@@ -896,35 +923,54 @@ export default class GameScene extends Phaser.Scene {
 
     const fadeDurationMs = 350;
     const fadeStartedAt = performance.now();
+    let fadeDone = false;
+
+    const completeFade = (): void => {
+      if (fadeDone) return;
+      fadeDone = true;
+      this.goToNextLevel();
+    };
+
+    this.tweens.add({
+      targets: fadeOut,
+      alpha: 1,
+      duration: fadeDurationMs,
+      ease: 'Cubic.easeIn',
+      onComplete: completeFade,
+    });
 
     const tickFade = (): void => {
-      if (!this.scene.isActive()) return;
+      if (fadeDone || !this.scene.isActive()) return;
       const progress = Math.min(1, (performance.now() - fadeStartedAt) / fadeDurationMs);
       fadeOut.setAlpha(progress);
       if (progress < 1) {
         requestAnimationFrame(tickFade);
       } else {
-        this.goToNextLevel();
+        completeFade();
       }
     };
     requestAnimationFrame(tickFade);
 
     this.levelExitRealtimeSafety = window.setTimeout(() => {
       this.levelExitRealtimeSafety = undefined;
-      if (this.scene.isActive() && this.levelTransitioning) {
-        this.goToNextLevel();
-      }
-    }, fadeDurationMs + 150);
+      completeFade();
+    }, fadeDurationMs + 200);
   }
 
   private goToNextLevel(): void {
-    if (this.gameEnding) return;
+    if (this.gameEnding || this.nextLevelSceneStarted) return;
 
     const nextLevelIndex = this.levelIndex + 1;
     const nextSceneKey = this.levelIndex === 0 ? CHARACTER_SELECT_SCENE_KEY : 'GameScene';
-    if (this.game.scene.isActive(nextSceneKey)) return;
+    if (this.game.scene.isActive(nextSceneKey)) {
+      this.nextLevelSceneStarted = true;
+      return;
+    }
 
+    this.nextLevelSceneStarted = true;
     this.clearLevelAdvanceRealtimeSafety();
+    dismissControlsModal(this);
+    destroyCharacterSelectOverlay();
     this.forceGameplayClockRunning();
 
     const payload =
@@ -935,15 +981,17 @@ export default class GameScene extends Phaser.Scene {
     startSceneNextTick(this.game, nextSceneKey, payload, 0);
     this.levelAdvanceRealtimeSafety = window.setTimeout(() => {
       this.levelAdvanceRealtimeSafety = undefined;
-      if (this.scene.isActive() && !this.game.scene.isActive(nextSceneKey)) {
+      if (!this.game.scene.isActive(nextSceneKey)) {
         startSceneNextTick(this.game, nextSceneKey, payload, 0);
       }
-    }, 1500);
+    }, 1200);
   }
 
   private transitionToVictoryScreen(): void {
     if (this.gameEnding) return;
     this.gameEnding = true;
+    dismissControlsModal(this);
+    destroyCharacterSelectOverlay();
     this.clearLevelExitRealtimeSafety();
     this.clearVictoryRealtimeSafety();
     this.clearLevelAdvanceRealtimeSafety();
@@ -968,22 +1016,12 @@ export default class GameScene extends Phaser.Scene {
     }, 500);
   }
 
-  private revealExitFloorInstant(): void {
-    const level = getLevel(this.levelIndex);
-    if (!hasFloorTexture(this, level.id, 'exit')) return;
-
-    this.floorSprite?.destroy();
-    const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
-    exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-    exitFloor.setDepth(1);
-    exitFloor.setAlpha(1);
-    this.floorSprite = exitFloor;
-  }
-
   gameOver(won = false): void {
     if (this.gameEnding) return;
     if (this.levelTransitioning && !won) return;
     this.gameEnding = true;
+    dismissControlsModal(this);
+    destroyCharacterSelectOverlay();
     this.clearLevelExitRealtimeSafety();
     this.clearVictoryRealtimeSafety();
     this.clearLevelAdvanceRealtimeSafety();

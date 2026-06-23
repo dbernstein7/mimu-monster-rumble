@@ -21,6 +21,7 @@ import {
   focusGameSurface,
   MAIN_MENU_INPUT_GUARD_MS,
   MAIN_MENU_SCENE_KEY,
+  startSceneNextTick,
 } from '../utils/sceneNav';
 import { resetRunState, RUN_MIMU1_KEY } from '../utils/runState';
 import {
@@ -391,7 +392,7 @@ export default class CharacterSelectScene extends Phaser.Scene {
 
     this.registry.set('characterId', id);
     this.registry.set('levelIndex', this.targetLevelIndex);
-    this.scene.start('GameScene', { characterId: id, levelIndex: this.targetLevelIndex });
+    startSceneNextTick(this.game, 'GameScene', { characterId: id, levelIndex: this.targetLevelIndex }, 0);
   }
 
   private stopChooseMimuAudio(): void {

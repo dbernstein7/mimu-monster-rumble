@@ -216,3 +216,8 @@ export function mountControlsButton(
 
   return button;
 }
+
+/** Close controls panel if open — e.g. before boss exit so nothing blocks the scene. */
+export function dismissControlsModal(scene: Phaser.Scene): void {
+  closeControlsModal(scene);
+}
