@@ -16,7 +16,7 @@ import { PlayerWalkingSfx } from '../systems/PlayerWalkingSfx';
 import { HUD } from '../ui/HUD';
 import { InputManager } from '../input/InputManager';
 import { MobileControls } from '../ui/MobileControls';
-import { isMobileTouchDevice, prepareMobileSceneHandoff } from '../utils/device';
+import { isMobileTouchDevice } from '../utils/device';
 import { onGameAudioUnlocked, isSoundManagerLocked, unlockMobileAudio } from '../utils/audioUnlock';
 import type { CharacterId, EnemyType } from '../types/game';
 import { clampSpriteToWorld, spawnMargins } from '../utils/screenBounds';
@@ -468,20 +468,12 @@ export default class GameScene extends Phaser.Scene {
     this.time.timeScale = 1;
     this.physics.resume();
     this.tweens.resumeAll();
-    if (isMobileTouchDevice() && (this.levelExitActive || this.levelTransitioning || this.gameEnding)) {
-      this.mobileControls?.prepareForSceneTransition();
-    }
   }
 
   private beginLevelExitWalk(): void {
     this.playerObstacleCollider?.destroy();
     this.playerObstacleCollider = undefined;
-    if (isMobileTouchDevice()) {
-      this.mobileControls?.prepareForSceneTransition();
-      this.input.resetPointers();
-    } else {
-      this.mobileControls?.setEnabled(false);
-    }
+    this.mobileControls?.setEnabled(false);
     this.player.setVelocity(0, 0);
   }
 
@@ -735,6 +727,11 @@ export default class GameScene extends Phaser.Scene {
 
     this.inputManager.update();
 
+    if (this.levelExitActive && !this.levelTransitioning && !this.gameEnding) {
+      this.updateLevelExit(delta);
+      return;
+    }
+
     if (this.inputManager.isPauseJustPressed()) {
       if (!this.levelTransitioning && !this.levelExitActive) {
         this.setPaused(!this.paused);
@@ -750,11 +747,6 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (this.levelTransitioning || this.gameEnding) return;
-
-    if (this.levelExitActive) {
-      this.updateLevelExit(delta);
-      return;
-    }
 
     const movement = this.inputManager.lastMovement;
 
@@ -811,8 +803,7 @@ export default class GameScene extends Phaser.Scene {
     dismissControlsModal(this);
     destroyCharacterSelectOverlay();
     if (isMobileTouchDevice()) {
-      prepareMobileSceneHandoff(this.game);
-      this.mobileControls?.prepareForSceneTransition();
+      document.getElementById('game-container')?.classList.remove('mobile-hidden');
       this.input.resetPointers();
     }
     this.forceGameplayClockRunning();
@@ -834,10 +825,6 @@ export default class GameScene extends Phaser.Scene {
       this.abilitySystem.cancelActiveEffects(this.player);
       this.playerWalkingSfx.stop();
       this.player.setVelocity(0, 0);
-      if (isMobileTouchDevice()) {
-        prepareMobileSceneHandoff(this.game);
-        this.mobileControls?.prepareForSceneTransition();
-      }
       this.transitionToVictoryScreen();
       return;
     }
@@ -859,7 +846,7 @@ export default class GameScene extends Phaser.Scene {
     const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
-    this.scheduleLevelExitSafetyFinish(isMobileTouchDevice() ? 3500 : 5000);
+    this.scheduleLevelExitSafetyFinish(5000);
   }
 
   private revealExitFloor(): void {
@@ -870,13 +857,6 @@ export default class GameScene extends Phaser.Scene {
     const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
     exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
     exitFloor.setDepth(1);
-
-    if (isMobileTouchDevice()) {
-      exitFloor.setAlpha(1);
-      this.floorSprite = exitFloor;
-      return;
-    }
-
     exitFloor.setAlpha(0);
 
     this.tweens.add({
@@ -900,7 +880,7 @@ export default class GameScene extends Phaser.Scene {
     }, 850);
   }
 
-  private updateLevelExit(delta: number): void {
+  private updateLevelExit(_delta: number): void {
     if (!this.exitGateTarget) return;
 
     this.forceGameplayClockRunning();
@@ -915,25 +895,11 @@ export default class GameScene extends Phaser.Scene {
 
     const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
     const walk = { x: Math.cos(angle), y: Math.sin(angle) };
-
-    if (isMobileTouchDevice()) {
-      const frameDelta = delta > 0 ? delta : this.game.loop.delta || 16.67;
-      const step = Math.min(dist, this.player.moveSpeed * (frameDelta / 16.67));
-      this.player.x += walk.x * step;
-      this.player.y += walk.y * step;
-      this.player.setVelocity(0, 0);
-      const body = this.player.body as Phaser.Physics.Arcade.Body | null;
-      body?.updateFromGameObject();
-    } else {
-      this.player.setVelocity(walk.x * this.player.moveSpeed, walk.y * this.player.moveSpeed);
-    }
-
+    this.player.setVelocity(walk.x * this.player.moveSpeed, walk.y * this.player.moveSpeed);
     this.player.updateVisuals(walk);
     this.playerWalkingSfx.update(this.player, walk, true);
     this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
-    if (!isMobileTouchDevice()) {
-      this.mobileControls?.update(this.player);
-    }
+    this.mobileControls?.update(this.player);
   }
 
   private finishLevelExit(): void {
@@ -947,11 +913,7 @@ export default class GameScene extends Phaser.Scene {
     this.playerWalkingSfx.stop();
     this.player.setVelocity(0, 0);
     this.exitGateTarget = undefined;
-    if (isMobileTouchDevice()) {
-      this.mobileControls?.prepareForSceneTransition();
-    } else {
-      this.mobileControls?.setEnabled(false);
-    }
+    this.mobileControls?.setEnabled(false);
 
     this.levelTransitioning = true;
     this.registry.set('runScore', this.player.score);
@@ -973,15 +935,13 @@ export default class GameScene extends Phaser.Scene {
       this.goToNextLevel();
     };
 
-    if (!isMobileTouchDevice()) {
-      this.tweens.add({
-        targets: fadeOut,
-        alpha: 1,
-        duration: fadeDurationMs,
-        ease: 'Cubic.easeIn',
-        onComplete: completeFade,
-      });
-    }
+    this.tweens.add({
+      targets: fadeOut,
+      alpha: 1,
+      duration: fadeDurationMs,
+      ease: 'Cubic.easeIn',
+      onComplete: completeFade,
+    });
 
     const tickFade = (): void => {
       if (fadeDone || !this.scene.isActive()) return;
@@ -1022,23 +982,13 @@ export default class GameScene extends Phaser.Scene {
         ? { levelIndex: nextLevelIndex, continueRun: true }
         : { characterId: this.characterId, levelIndex: nextLevelIndex };
 
-    if (isMobileTouchDevice()) {
-      prepareMobileSceneHandoff(this.game);
-      this.mobileControls?.prepareForSceneTransition();
-      this.input.resetPointers();
-    }
-
-    const handoffDelayMs = isMobileTouchDevice() ? 48 : 0;
-    startSceneNextTick(this.game, nextSceneKey, payload, handoffDelayMs);
+    startSceneNextTick(this.game, nextSceneKey, payload, 0);
     this.levelAdvanceRealtimeSafety = window.setTimeout(() => {
       this.levelAdvanceRealtimeSafety = undefined;
       if (!this.game.scene.isActive(nextSceneKey)) {
-        if (isMobileTouchDevice()) {
-          prepareMobileSceneHandoff(this.game);
-        }
-        startSceneNextTick(this.game, nextSceneKey, payload, handoffDelayMs);
+        startSceneNextTick(this.game, nextSceneKey, payload, 0);
       }
-    }, isMobileTouchDevice() ? 1800 : 1200);
+    }, 1200);
   }
 
   private transitionToVictoryScreen(): void {
@@ -1061,16 +1011,13 @@ export default class GameScene extends Phaser.Scene {
       won: true as const,
     };
 
-    startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, isMobileTouchDevice() ? 48 : 16);
+    startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, 16);
     this.victoryRealtimeSafety = window.setTimeout(() => {
       this.victoryRealtimeSafety = undefined;
       if (!this.game.scene.isActive(GAME_OVER_SCENE_KEY)) {
-        if (isMobileTouchDevice()) {
-          prepareMobileSceneHandoff(this.game);
-        }
-        startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, isMobileTouchDevice() ? 48 : 0);
+        startSceneNextTick(this.game, GAME_OVER_SCENE_KEY, payload, 0);
       }
-    }, isMobileTouchDevice() ? 800 : 500);
+    }, 500);
   }
 
   gameOver(won = false): void {

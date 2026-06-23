@@ -173,6 +173,12 @@ export class MobileControls {
 
     const onPointerDown = (pointer: Phaser.Input.Pointer) => {
       if (!this.enabled || !pointer.isDown) return;
+      const gameScene = this.scene as {
+        levelExitActive?: boolean;
+        levelTransitioning?: boolean;
+        gameEnding?: boolean;
+      };
+      if (gameScene.levelExitActive || gameScene.levelTransitioning || gameScene.gameEnding) return;
       unlockMobileAudio(this.scene.game);
       if (this.joystickPointerId !== null) return;
       if (isOnPowerButton(pointer.x, pointer.y, this.controlPos.ability, this.controlPos.secondary)) return;

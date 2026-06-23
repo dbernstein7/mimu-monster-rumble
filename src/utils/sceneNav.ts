@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { destroyAuthFormOverlay } from '../ui/authForm';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
 import { destroyGameOverOverlay } from '../ui/gameOverOverlay';
+import { isMobileTouchDevice, prepareMobileSceneHandoff } from './device';
 
 export const MAIN_MENU_SCENE_KEY = 'MainMenuScene';
 export const AUTH_SCENE_KEY = 'AuthScene';
@@ -71,6 +72,9 @@ export function startSceneNextTick(
   }
   focusGameSurface();
   window.setTimeout(() => {
+    if (isMobileTouchDevice()) {
+      prepareMobileSceneHandoff(game);
+    }
     releaseStuckPointers(game);
     stopScenesExcept(game, key);
     game.scene.start(key, data);
