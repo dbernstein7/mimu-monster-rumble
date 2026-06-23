@@ -32,6 +32,7 @@ import {
   PUMPKIN_BOUNCE_SYNC_LEAD_MS,
   usesLoopSfx,
 } from '../assets/soundFxAssets';
+import { isMobileTouchDevice } from '../utils/device';
 
 export class Enemy extends Phaser.Physics.Arcade.Sprite {
   enemyType: EnemyType | BossEnemyId;
@@ -104,6 +105,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   private syncMovementSfx(speed: number): void {
+    if (isMobileTouchDevice()) return;
     this.syncBounceSfx();
     this.syncLoopSfx(speed);
   }
@@ -152,7 +154,6 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
   }
 
   private haltBounceSfx(): void {
-    this.anims.stop();
     this.bounceAnimProgress = 0;
   }
 
@@ -332,6 +333,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     player: Player,
     _obstacles: Phaser.GameObjects.Group,
     enemies?: Phaser.GameObjects.Group,
+    deltaMs = 16.67,
   ): void {
     this.updateHealthBar();
     const now = this.scene.time.now;
@@ -347,7 +349,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       if (this.body) {
         (this.body as Phaser.Physics.Arcade.Body).checkCollision.none = false;
       }
-      this.updateConfusedAI(enemies, now);
+      this.updateConfusedAI(enemies, now, deltaMs);
       const body = this.body as Phaser.Physics.Arcade.Body;
       const speed = Math.hypot(body.velocity.x, body.velocity.y);
       this.syncMovementSfx(speed);
@@ -362,7 +364,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     const cfg = this.isBoss ? null : ENEMIES[this.enemyType as EnemyType];
 
     if (cfg?.phase) {
-      this.phaseTimer += 16;
+      this.phaseTimer += deltaMs;
       if (Math.floor(this.phaseTimer / 2000) % 2 === 1) {
         this.setAlpha(0.3);
         this.body!.checkCollision.none = true;
@@ -373,7 +375,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     }
 
     if (this.isBoss) {
-      this.updateBossAI(player);
+      this.updateBossAI(player, deltaMs);
       return;
     }
 
@@ -387,7 +389,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       } else {
         this.setVelocity(0, 0);
       }
-      this.shootTimer += 16;
+      this.shootTimer += deltaMs;
       if (this.shootTimer > 2000) {
         this.shootTimer = 0;
         const gameScene = this.scene as Phaser.Scene & { spawnProjectile?: (x: number, y: number, tx: number, ty: number) => void };
@@ -403,11 +405,11 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       speed > 8
         ? { x: body.velocity.x / speed, y: body.velocity.y / speed }
         : { x: 0, y: 0 };
-    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing);
+    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing, deltaMs);
     this.syncMovementSfx(speed);
   }
 
-  private updateConfusedAI(enemies: Phaser.GameObjects.Group, now: number): void {
+  private updateConfusedAI(enemies: Phaser.GameObjects.Group, now: number, deltaMs: number): void {
     let nearest: Enemy | null = null;
     let nearestDist = Infinity;
 
@@ -434,7 +436,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       speed > 8
         ? { x: body.velocity.x / speed, y: body.velocity.y / speed }
         : { x: 0, y: 0 };
-    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing);
+    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing, deltaMs);
   }
 
   private updateConfusedSpin(now: number): void {
@@ -444,8 +446,8 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
     this.setVelocity(Math.cos(angle) * spinSpeed, Math.sin(angle) * spinSpeed);
   }
 
-  private updateBossAI(player: Player): void {
-    this.attackTimer += 16;
+  private updateBossAI(player: Player, deltaMs: number): void {
+    this.attackTimer += deltaMs;
     const dist = Phaser.Math.Distance.Between(this.x, this.y, player.x, player.y);
 
     if (this.attackTimer > 3000) {
@@ -473,7 +475,7 @@ export class Enemy extends Phaser.Physics.Arcade.Sprite {
       speed > 8
         ? { x: body.velocity.x / speed, y: body.velocity.y / speed }
         : { x: 0, y: 0 };
-    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing);
+    this.lastFacing = updateEnemyAnimation(this, this.enemyType, movement, this.lastFacing, deltaMs);
     this.syncMovementSfx(speed);
   }
 }

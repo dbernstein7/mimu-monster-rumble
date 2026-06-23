@@ -1,5 +1,10 @@
 import type { CharacterId, EnemyType } from '../types/game';
 import { isSoundManagerLocked, playSoundWhenReady } from '../utils/audioUnlock';
+import { isMobileTouchDevice } from '../utils/device';
+
+function enemyCombatSfxEnabled(): boolean {
+  return !isMobileTouchDevice();
+}
 
 export type BossLoopSfxId = 'boss' | 'boss2';
 
@@ -354,6 +359,7 @@ export function acquireEnemyLoopSfx(
   volume: number,
   rate = 1,
 ): void {
+  if (!enemyCombatSfxEnabled()) return;
   if (!scene.cache.audio.exists(key)) return;
 
   const map = getSharedEnemyLoopMap(scene);
@@ -411,6 +417,7 @@ export function pruneEnemyMovementSfx(
   scene: Phaser.Scene,
   enemies: Phaser.GameObjects.Group,
 ): void {
+  if (!enemyCombatSfxEnabled()) return;
   const living = enemies.getChildren().filter((child) => {
     const enemy = child as unknown as LivingEnemyLike;
     return enemy.active && !enemy.isDead;
@@ -441,6 +448,7 @@ export function pruneEnemyMovementSfx(
 }
 
 export function playPumpkinBounceSfx(scene: Phaser.Scene): void {
+  if (!enemyCombatSfxEnabled()) return;
   if (!hasPumpkinBounceSfx(scene)) return;
   playManagedOneShot(
     scene,
@@ -576,6 +584,7 @@ export function stopMenuBackgroundSfx(scene: Phaser.Scene): void {
 }
 
 export function playProjectileHitSfx(scene: Phaser.Scene): void {
+  if (!enemyCombatSfxEnabled()) return;
   if (!hasHitSfx(scene)) return;
   playManagedOneShot(scene, HIT_SFX_KEY, HIT_SFX_VOLUME, HIT_SFX_COOLDOWN_MS, MAX_HIT_CONCURRENT);
 }

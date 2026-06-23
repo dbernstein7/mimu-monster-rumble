@@ -30,6 +30,8 @@ import {
 } from '../utils/sceneNav';
 import {
   ensureCharacterSelectAssets,
+  ensureDeferredAssets,
+  ensureLevelEnemyAnimations,
   startDeferredAssetLoad,
 } from '../assets/stagedLoading';
 import { destroyCharacterSelectOverlay } from '../ui/characterSelectOverlay';
@@ -60,7 +62,7 @@ import {
   LevelMusicCycle,
   type LevelMusicHandle,
 } from '../assets/musicAssets';
-import { pruneEnemyMovementSfx, setCombatSfxPaused, stopAllCombatSfx } from '../assets/soundFxAssets';
+import { pruneEnemyMovementSfx, setCombatSfxPaused, stopAllCombatSfx, stopAllEnemyLoopSfx } from '../assets/soundFxAssets';
 
 /** Pause menu panel — same border treatment as leaderboard / account / game over. */
 const PAUSE_PANEL = {
@@ -288,6 +290,12 @@ export default class GameScene extends Phaser.Scene {
     this.startLevelMusic();
     onGameAudioUnlocked(() => this.ensureLevelMusicPlaying(), this);
 
+    ensureLevelEnemyAnimations(this, this.levelIndex);
+    void ensureDeferredAssets(this.game).then(() => {
+      if (!this.scene.isActive()) return;
+      ensureLevelEnemyAnimations(this, this.levelIndex);
+    });
+
     if (this.levelIndex === 0) {
       void startDeferredAssetLoad(this.game);
       void ensureCharacterSelectAssets(this);
@@ -296,6 +304,7 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (isMobileTouchDevice()) {
+      stopAllEnemyLoopSfx(this);
       this.mobileLastUpdateAt = performance.now();
       this.startMobileHeartbeat();
       const onVisible = (): void => {
@@ -641,7 +650,7 @@ export default class GameScene extends Phaser.Scene {
     this.enemies.getChildren().forEach((e) => {
       const enemy = e as Enemy;
       if (!enemy.active || enemy.isDead) return;
-      enemy.updateAI(this.player, this.obstacles, this.enemies);
+      enemy.updateAI(this.player, this.obstacles, this.enemies, stepDelta);
       this.clampEntity(enemy);
     });
 
@@ -822,6 +831,7 @@ export default class GameScene extends Phaser.Scene {
     this.time.timeScale = 1;
     this.physics.resume();
     this.tweens.resumeAll();
+    this.anims.paused = false;
   }
 
   /** Unblock overlays, pointers, and clocks before boss exit / scene handoff. */
@@ -1184,7 +1194,7 @@ export default class GameScene extends Phaser.Scene {
     this.enemies.getChildren().forEach((e) => {
       const enemy = e as Enemy;
       if (!enemy.active || enemy.isDead) return;
-      enemy.updateAI(this.player, this.obstacles, this.enemies);
+      enemy.updateAI(this.player, this.obstacles, this.enemies, stepDelta);
       this.clampEntity(enemy);
     });
 
@@ -1564,6 +1574,7 @@ export default class GameScene extends Phaser.Scene {
     } else {
       this.physics.resume();
       this.tweens.resumeAll();
+      this.anims.paused = false;
       this.time.timeScale = 1;
       if (this.bossMusic?.isPaused) {
         this.bossMusic.resume();

@@ -21,6 +21,9 @@ import { loadBootSoundEffects, loadDeferredSoundEffects } from './soundFxAssets'
 import { configureUiTextures, loadCriticalUiTextures, loadDeferredUiTextures } from './uiAssets';
 import { loadPowerUpTextures } from './powerUpAssets';
 import { loadFloorTexturesForLevel, hasFloorTexture } from './floorTextures';
+import { getBossIdForLevel } from '../config/enemies';
+import { getLevel } from '../config/levels';
+import type { EnemySpriteId } from '../config/enemySprites';
 import { loadEnemySprites, registerEnemyAnimations } from '../systems/EnemyAnimation';
 import { loadCharacterSprites, registerCharacterAnimations } from '../systems/PlayerAnimation';
 
@@ -58,6 +61,13 @@ export function ensureCharacterSelectAssets(scene: Phaser.Scene): Promise<void> 
   });
 
   return characterSelectLoadPromise;
+}
+
+/** Register run cycles for every enemy type in the active level (textures must be cached). */
+export function ensureLevelEnemyAnimations(scene: Phaser.Scene, levelIndex: number): void {
+  const level = getLevel(levelIndex);
+  const ids = new Set<EnemySpriteId>([...level.enemyPool, getBossIdForLevel(levelIndex)]);
+  ids.forEach((id) => registerEnemyAnimations(scene, id));
 }
 
 /** Menu + level 1 — keep first paint small on mobile. */

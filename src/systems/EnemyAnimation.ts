@@ -2,8 +2,11 @@ import type { EnemySpriteId } from '../config/enemySprites';
 import {
   getEnemyRunAnimKey,
   getEnemySpriteConfig,
+  getEnemyTextureKey,
+  hasEnemySprite,
 } from '../config/enemySprites';
 import type { RunFacing } from '../config/playerSprites';
+import { isMobileTouchDevice } from '../utils/device';
 
 type Facing = 'down' | 'up' | 'left' | 'right';
 
@@ -11,6 +14,8 @@ interface MovementVector {
   x: number;
   y: number;
 }
+
+const mobileRunElapsedMs = new WeakMap<Phaser.GameObjects.Sprite, number>();
 
 export function loadEnemySprites(scene: Phaser.Scene, type: EnemySpriteId): void {
   const cfg = getEnemySpriteConfig(type);
@@ -49,7 +54,12 @@ export function updateEnemyAnimation(
   enemyType: EnemySpriteId,
   movement: MovementVector,
   lastFacing: Facing,
+  deltaMs = 16.67,
 ): Facing {
+  if (isMobileTouchDevice()) {
+    return updateEnemyAnimationMobile(sprite, enemyType, movement, lastFacing, deltaMs);
+  }
+
   const cfg = getEnemySpriteConfig(enemyType);
   const animKey = getEnemyRunAnimKey(enemyType);
   if (!cfg || !sprite.scene.anims.exists(animKey)) {
@@ -70,6 +80,51 @@ export function updateEnemyAnimation(
   if (!sprite.anims.isPlaying || sprite.anims.currentAnim?.key !== animKey) {
     sprite.play(animKey, true);
   }
+
+  return facing;
+}
+
+/** Mobile WebKit often stalls Phaser's AnimationManager — cycle run textures on wall-clock time. */
+function updateEnemyAnimationMobile(
+  sprite: Phaser.Physics.Arcade.Sprite,
+  enemyType: EnemySpriteId,
+  movement: MovementVector,
+  lastFacing: Facing,
+  deltaMs: number,
+): Facing {
+  const cfg = getEnemySpriteConfig(enemyType);
+  if (!cfg || !hasEnemySprite(enemyType, sprite.scene)) {
+    return lastFacing;
+  }
+
+  sprite.anims.stop();
+
+  const moving = movement.x !== 0 || movement.y !== 0;
+  if (!moving) {
+    mobileRunElapsedMs.delete(sprite);
+    const idleKey = getEnemyTextureKey(enemyType, sprite.scene);
+    if (sprite.texture.key !== idleKey) {
+      sprite.setTexture(idleKey);
+    }
+    sprite.setFrame(0);
+    applyFacing(sprite, lastFacing, cfg.runFacing, lastFacing);
+    return lastFacing;
+  }
+
+  const facing = pickFacing(movement, lastFacing);
+  applyFacing(sprite, facing, cfg.runFacing, lastFacing);
+
+  const frameDuration = 1000 / cfg.frameRate;
+  const cycleMs = frameDuration * cfg.frameCount;
+  const elapsed = ((mobileRunElapsedMs.get(sprite) ?? 0) + Math.max(1, deltaMs)) % cycleMs;
+  mobileRunElapsedMs.set(sprite, elapsed);
+  const frameIndex = Math.min(cfg.frameCount - 1, Math.floor(elapsed / frameDuration));
+
+  const frameKey = `${enemyType}_run_${frameIndex}`;
+  if (sprite.texture.key !== frameKey) {
+    sprite.setTexture(frameKey);
+  }
+  sprite.setFrame(0);
 
   return facing;
 }
