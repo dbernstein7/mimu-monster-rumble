@@ -49,19 +49,23 @@ export function getLeaderboardContentLayout(hasBorder: boolean) {
 
   const xPad = hasBorder ? 10 : 0;
   const topInner = LEADERBOARD_PANEL.y + (hasBorder ? (mobile ? 64 : 72) : 24);
+  const bottomInner =
+    LEADERBOARD_PANEL.y + LEADERBOARD_PANEL.height - (hasBorder ? (mobile ? 50 : 54) : 20);
   const titleY = topInner;
   const subtitleY = topInner + (mobile ? 18 : 22);
   const tabY = topInner + (mobile ? 54 : 66);
-  const headerY = tabY + (mobile ? 32 : 38);
-  const rowStartY = headerY + (mobile ? 32 : 40);
+  const headerY = tabY + (mobile ? 30 : 36);
+  const rowStartY = headerY + (mobile ? 26 : 30);
+  const rowHeight = mobile ? 26 : 24;
+  const maxRows = Math.max(6, Math.floor((bottomInner - rowStartY) / rowHeight));
   return {
     titleY,
     subtitleY,
     tabY,
     headerY,
     rowStartY,
-    rowHeight: mobile ? 30 : 34,
-    maxRows: mobile ? 8 : 12,
+    rowHeight,
+    maxRows,
     backY: mobile ? GAME_HEIGHT - 40 : GAME_HEIGHT - 48,
     colHash: 110 + xPad,
     colPlayer: 150 + xPad,

@@ -33,6 +33,37 @@ function formatScoreMimus(entry: LeaderboardEntry): string {
 
 type LeaderboardTab = 'scores' | 'coins';
 
+const ROW_RANK_STYLE = { fontFamily: UI_FONTS.title, fontSize: '14px' };
+const ROW_NAME_STYLE = {
+  fontFamily: UI_FONTS.body,
+  fontSize: '14px',
+  color: '#f5f0ff',
+  fontStyle: 'bold' as const,
+};
+const ROW_SCORE_STYLE = {
+  fontFamily: UI_FONTS.body,
+  fontSize: '13px',
+  color: '#2ed573',
+  fontStyle: 'bold' as const,
+};
+const ROW_COINS_STYLE = {
+  fontFamily: UI_FONTS.body,
+  fontSize: '13px',
+  color: '#ffc857',
+  fontStyle: 'bold' as const,
+};
+
+function addRowLabel(
+  scene: Phaser.Scene,
+  container: Phaser.GameObjects.Container,
+  x: number,
+  y: number,
+  text: string,
+  style: Phaser.Types.GameObjects.Text.TextStyle,
+): void {
+  container.add(scene.add.text(x, y, text, style).setOrigin(0, 0.5));
+}
+
 export default class LeaderboardScene extends Phaser.Scene {
   private activeTab: LeaderboardTab = 'scores';
   private listContainer?: Phaser.GameObjects.Container;
@@ -291,81 +322,49 @@ export default class LeaderboardScene extends Phaser.Scene {
 
   private renderScoreEntries(entries: LeaderboardEntry[]): void {
     const container = this.beginContentContainer();
+    const rowH = this.layout.rowHeight;
 
     entries.slice(0, this.layout.maxRows).forEach((entry, i) => {
-      const y = this.layout.rowStartY + i * this.layout.rowHeight;
+      const y = this.layout.rowStartY + i * rowH;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];
 
       if (i % 2 === 0) {
         const row = this.add.graphics();
         row.fillStyle(0xffffff, 0.04);
-        row.fillRoundedRect(this.layout.rowRectX, y - 12, this.layout.rowRectW, 30, 6);
+        row.fillRoundedRect(this.layout.rowRectX, y - rowH / 2 + 1, this.layout.rowRectW, rowH - 2, 6);
         container.add(row);
       }
 
-      container.add(
-        this.add.text(this.layout.colHash, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
-      );
-      container.add(
-        this.add.text(this.layout.colPlayer, y, entry.username.slice(0, 16), {
-          fontFamily: UI_FONTS.body,
-          fontSize: '16px',
-          color: '#f5f0ff',
-          fontStyle: 'bold',
-        }),
-      );
-      container.add(
-        this.add.text(this.layout.colMimus, y, formatScoreMimus(entry), {
-          ...subtitleStyle('13px'),
-          wordWrap: { width: 340 },
-        }),
-      );
-      container.add(
-        this.add.text(this.layout.colScore, y, formatScore(entry.score), {
-          fontFamily: UI_FONTS.body,
-          fontSize: '16px',
-          color: '#2ed573',
-          fontStyle: 'bold',
-        }),
-      );
+      addRowLabel(this, container, this.layout.colHash, y, `${i + 1}`, { ...ROW_RANK_STYLE, color: rankColor });
+      addRowLabel(this, container, this.layout.colPlayer, y, entry.username.slice(0, 16), ROW_NAME_STYLE);
+      addRowLabel(this, container, this.layout.colMimus, y, formatScoreMimus(entry), {
+        ...subtitleStyle('12px'),
+        wordWrap: { width: 340 },
+      });
+      addRowLabel(this, container, this.layout.colScore, y, formatScore(entry.score), ROW_SCORE_STYLE);
     });
   }
 
   private renderCoinEntries(entries: CoinLeaderboardEntry[]): void {
     const container = this.beginContentContainer();
+    const rowH = this.layout.rowHeight;
 
     entries.slice(0, this.layout.maxRows).forEach((entry, i) => {
-      const y = this.layout.rowStartY + i * this.layout.rowHeight;
+      const y = this.layout.rowStartY + i * rowH;
       const rankColors = ['#ffc857', '#e8e8e8', '#cd7f32', '#f5f0ff'];
       const rankColor = rankColors[Math.min(i, 3)];
 
       if (i % 2 === 0) {
         const row = this.add.graphics();
         row.fillStyle(0xffffff, 0.04);
-        row.fillRoundedRect(this.layout.rowRectX, y - 12, this.layout.rowRectW, 30, 6);
+        row.fillRoundedRect(this.layout.rowRectX, y - rowH / 2 + 1, this.layout.rowRectW, rowH - 2, 6);
         container.add(row);
       }
 
-      container.add(
-        this.add.text(this.layout.colHash, y, `${i + 1}`, { fontFamily: UI_FONTS.title, fontSize: '16px', color: rankColor }),
-      );
-      container.add(
-        this.add.text(this.layout.colPlayer, y, entry.username.slice(0, 20), {
-          fontFamily: UI_FONTS.body,
-          fontSize: '16px',
-          color: '#f5f0ff',
-          fontStyle: 'bold',
-        }),
-      );
-      container.add(
-        this.add.text(this.layout.colScore, y, formatScore(entry.totalCoins), {
-          fontFamily: UI_FONTS.body,
-          fontSize: '16px',
-          color: '#ffc857',
-          fontStyle: 'bold',
-        }),
-      );
+      addRowLabel(this, container, this.layout.colHash, y, `${i + 1}`, { ...ROW_RANK_STYLE, color: rankColor });
+      addRowLabel(this, container, this.layout.colPlayer, y, entry.username.slice(0, 20), ROW_NAME_STYLE);
+      addRowLabel(this, container, this.layout.colScore, y, formatScore(entry.totalCoins), ROW_COINS_STYLE);
     });
   }
 }
