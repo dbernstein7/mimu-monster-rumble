@@ -1,4 +1,4 @@
-import { GAME_HEIGHT, GAME_WIDTH } from './gameConstants';
+import { GAME_HEIGHT, GAME_WIDTH, WORLD_BODY_PAD } from './gameConstants';
 
 /**
  * Flat-top octagon for Haunted / Mutated arena floor art (1280×720 game space).
@@ -60,4 +60,33 @@ export function getArenaExitGatePosition(): { x: number; y: number } {
     x: GAME_WIDTH / 2,
     y: topY + 52,
   };
+}
+
+/** Arrival radius scales with sprite hitbox so any character size can finish the walk. */
+export function getExitGateArrivalRadius(bodyRadius: number): number {
+  return Math.max(40, bodyRadius * 2.5);
+}
+
+/**
+ * True when the player has reached the exit gate zone (point distance or top-center band).
+ * Uses generous thresholds so world bounds / octagon walls cannot strand the player short of the gate.
+ */
+export function hasPlayerReachedExitGate(
+  px: number,
+  py: number,
+  bodyRadius: number,
+  gate = getArenaExitGatePosition(),
+): boolean {
+  const arrival = getExitGateArrivalRadius(bodyRadius);
+  if (Math.hypot(px - gate.x, py - gate.y) <= arrival) return true;
+
+  const topBandY = ARENA_OCTAGON_VERTICES[0].y * GAME_HEIGHT;
+  const inTopBand = py <= topBandY + bodyRadius + 36;
+  const centeredOnGate = Math.abs(px - gate.x) <= Math.max(56, bodyRadius * 2.5);
+  if (inTopBand && centeredOnGate) return true;
+
+  const worldTop = WORLD_BODY_PAD + bodyRadius;
+  if (py <= worldTop + 12 && centeredOnGate) return true;
+
+  return false;
 }

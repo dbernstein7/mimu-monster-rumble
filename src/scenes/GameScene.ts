@@ -3,7 +3,7 @@ import { getCharacter } from '../config/characters';
 import { getLevel, LEVELS } from '../config/levels';
 import { BOSS_PUMPKIN_PROJECTILE, getBossHp, getBossIdForLevel, getSlimeBallProjectileOptions } from '../config/enemies';
 import { getFloorTextureKey, hasFloorTexture } from '../assets/floorTextures';
-import { getArenaExitGatePosition } from '../config/arenaWalls';
+import { getArenaExitGatePosition, hasPlayerReachedExitGate } from '../config/arenaWalls';
 import { GAME_WIDTH, GAME_HEIGHT, PLAY_AREA } from '../config/gameConstants';
 import type { LevelConfig } from '../types/game';
 import { rollCoinValue } from '../config/coins';
@@ -130,6 +130,10 @@ export default class GameScene extends Phaser.Scene {
   private exitGateTarget?: Phaser.Math.Vector2;
   private playerObstacleCollider?: Phaser.Physics.Arcade.Collider;
   private levelExitRealtimeSafety?: number;
+  private handoffRetryWatchMs = 0;
+  private levelExitStuckWatchMs = 0;
+  private levelExitStuckSampleX = 0;
+  private levelExitStuckSampleY = 0;
   private victoryRealtimeSafety?: number;
   private levelAdvanceRealtimeSafety?: number;
   private nextLevelHandoffStarted = false;
@@ -174,6 +178,8 @@ export default class GameScene extends Phaser.Scene {
     this.mobileWaveTimerLastValue = -1;
     this.mobileLastUpdateAt = 0;
     this.mobileStuckSampleMs = 0;
+    this.handoffRetryWatchMs = 0;
+    this.levelExitStuckWatchMs = 0;
     this.registry.set('characterId', this.characterId);
     this.registry.set('levelIndex', this.levelIndex);
   }
@@ -537,7 +543,9 @@ export default class GameScene extends Phaser.Scene {
     this.nextLevelHandoffStarted = false;
     this.bossActive = false;
     this.exitingToMenu = false;
+    this.handoffRetryWatchMs = 0;
     this.exitGateTarget = undefined;
+    this.levelExitStuckWatchMs = 0;
     this.waveGapScheduledAt = 0;
     this.mobileWallClockLastMs = 0;
     this.mobileDashStuckSinceMs = 0;
@@ -710,21 +718,17 @@ export default class GameScene extends Phaser.Scene {
     if (!isMobileTouchDevice()) return;
     if (this.exitingToMenu || this.gameEnding) return;
 
-    if (this.levelExitActive && !this.exitGateTarget && !this.levelTransitioning) {
-      this.levelExitActive = false;
-      this.clearMobileExitRaf();
-      this.clearLevelExitRealtimeSafety();
-      this.clearMobileBossExitForceComplete();
+    if (this.levelExitActive && !this.levelTransitioning && !this.gameEnding) {
+      this.recoverLevelExitWalk();
+      return;
     }
 
-    if (
-      this.levelTransitioning &&
-      !this.nextLevelHandoffStarted &&
-      !this.levelExitActive &&
-      !this.bossActive &&
-      !this.gameEnding
-    ) {
-      this.levelTransitioning = false;
+    if (this.levelTransitioning && !this.gameEnding) {
+      if (!this.nextLevelHandoffStarted) {
+        this.goToNextLevel();
+      } else {
+        this.maybeRetrySceneHandoff();
+      }
     }
 
     if (this.scene.isPaused()) {
@@ -898,11 +902,246 @@ export default class GameScene extends Phaser.Scene {
   private beginLevelExitWalk(): void {
     this.playerObstacleCollider?.destroy();
     this.playerObstacleCollider = undefined;
+    this.player.setCollideWorldBounds(false);
     this.mobileControls?.setEnabled(false);
-    if (isMobileTouchDevice()) {
-      this.mobileControls?.setOverlayVisible(false);
-    }
+    this.mobileControls?.setOverlayVisible(false);
     this.player.setVelocity(0, 0);
+    this.levelExitStuckWatchMs = 0;
+  }
+
+  private recoverLevelExitWalk(): void {
+    if (!this.levelExitActive || this.levelTransitioning || this.gameEnding || !this.player) return;
+
+    if (!this.exitGateTarget) {
+      const gate = getArenaExitGatePosition();
+      this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
+    }
+
+    this.forceGameplayClockRunning();
+    this.player.setCollideWorldBounds(false);
+    this.updateLevelExit(34);
+  }
+
+  private saveRunStateForContinue(): void {
+    this.registry.set('runScore', this.player.score);
+    this.registry.set('runCoins', this.player.coins);
+    this.registry.set(RUN_MIMU1_KEY, this.characterId);
+    this.registry.set('characterId', this.characterId);
+  }
+
+  private getNextLevelHandoff(): { nextSceneKey: string; payload: object } {
+    const nextLevelIndex = this.levelIndex + 1;
+    const nextSceneKey = this.levelIndex === 0 ? CHARACTER_SELECT_SCENE_KEY : 'GameScene';
+    const payload =
+      this.levelIndex === 0
+        ? { levelIndex: nextLevelIndex, continueRun: true }
+        : { characterId: this.characterId, levelIndex: nextLevelIndex };
+    return { nextSceneKey, payload };
+  }
+
+  private launchNextSceneHandoff(): void {
+    const { nextSceneKey, payload } = this.getNextLevelHandoff();
+    if (this.game.scene.isActive(nextSceneKey)) return;
+    launchSceneNow(this.game, nextSceneKey, payload);
+  }
+
+  private maybeRetrySceneHandoff(): void {
+    if (!this.levelTransitioning || !this.nextLevelHandoffStarted || this.gameEnding) return;
+
+    const { nextSceneKey } = this.getNextLevelHandoff();
+    if (this.game.scene.isActive(nextSceneKey)) return;
+
+    const now = performance.now();
+    if (now - this.handoffRetryWatchMs < 350) return;
+    this.handoffRetryWatchMs = now;
+
+    if (nextSceneKey === CHARACTER_SELECT_SCENE_KEY) {
+      void ensureCharacterSelectAssets(this).finally(() => this.launchNextSceneHandoff());
+    } else {
+      this.launchNextSceneHandoff();
+    }
+  }
+
+  private scheduleHandoffSafetyRetries(): void {
+    const delays = [80, 400, 1200, 3000];
+    for (const delayMs of delays) {
+      this.scheduleRealtime(() => {
+        if (this.gameEnding) return;
+        this.maybeRetrySceneHandoff();
+      }, delayMs, { allowInactive: true });
+    }
+  }
+
+  private revealExitFloor(): void {
+    const level = getLevel(this.levelIndex);
+    if (!hasFloorTexture(this, level.id, 'exit')) return;
+
+    this.floorSprite?.destroy();
+    const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
+    exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    exitFloor.setDepth(1);
+    exitFloor.setAlpha(isMobileTouchDevice() ? 1 : 0);
+    this.floorSprite = exitFloor;
+
+    if (isMobileTouchDevice()) return;
+
+    this.tweens.add({
+      targets: exitFloor,
+      alpha: 1,
+      duration: 750,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        this.floorSprite = exitFloor;
+      },
+    });
+
+    this.scheduleRealtime(() => {
+      if (!this.scene.isActive() || !exitFloor.active) return;
+      if (exitFloor.alpha < 1) {
+        exitFloor.setAlpha(1);
+        this.floorSprite = exitFloor;
+      }
+    }, 850);
+  }
+
+  private updateLevelExit(delta: number): void {
+    if (!this.exitGateTarget || !this.player) return;
+
+    this.forceGameplayClockRunning();
+
+    const target = this.exitGateTarget;
+    const bodyRadius = this.player.bodyRadius;
+    const gate = { x: target.x, y: target.y };
+    const now = performance.now();
+
+    if (hasPlayerReachedExitGate(this.player.x, this.player.y, bodyRadius, gate)) {
+      this.finishLevelExit();
+      return;
+    }
+
+    const stepSec = Math.max(0.016, Math.min(0.05, delta / 1000));
+    const speed = this.player.moveSpeed;
+    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
+    const walk = { x: Math.cos(angle), y: Math.sin(angle) };
+
+    this.player.setVelocity(walk.x * speed, walk.y * speed);
+
+    const prevX = this.player.x;
+    const prevY = this.player.y;
+    if (this.physics.world.isPaused) {
+      this.physics.resume();
+    }
+    this.physics.world.step(stepSec);
+
+    const moved = Math.hypot(this.player.x - prevX, this.player.y - prevY);
+    if (moved < 0.5) {
+      if (this.levelExitStuckWatchMs <= 0) {
+        this.levelExitStuckWatchMs = now;
+        this.levelExitStuckSampleX = this.player.x;
+        this.levelExitStuckSampleY = this.player.y;
+      } else if (now - this.levelExitStuckWatchMs > 500) {
+        const nudge = speed * stepSec * 2.5;
+        this.player.x += walk.x * nudge;
+        this.player.y += walk.y * nudge;
+        this.levelExitStuckWatchMs = now;
+      } else if (
+        now - this.levelExitStuckWatchMs > 1400 &&
+        Math.hypot(this.player.x - this.levelExitStuckSampleX, this.player.y - this.levelExitStuckSampleY) < 2
+      ) {
+        this.finishLevelExit();
+        return;
+      }
+    } else {
+      this.levelExitStuckWatchMs = 0;
+      this.levelExitStuckSampleX = this.player.x;
+      this.levelExitStuckSampleY = this.player.y;
+    }
+
+    if (hasPlayerReachedExitGate(this.player.x, this.player.y, bodyRadius, gate)) {
+      this.finishLevelExit();
+      return;
+    }
+
+    this.player.updateVisuals(walk);
+    this.playerWalkingSfx.update(this.player, walk, true);
+    this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
+  }
+
+  private finishLevelExit(): void {
+    if (this.levelTransitioning || this.gameEnding) return;
+
+    this.clearMobileExitRaf();
+    this.clearMobileBossExitForceComplete();
+    this.clearLevelExitRealtimeSafety();
+    this.tweens.killTweensOf(this.player);
+
+    this.levelExitActive = false;
+    this.playerWalkingSfx.stop();
+    this.player.setVelocity(0, 0);
+    this.player.setCollideWorldBounds(true);
+    this.exitGateTarget = undefined;
+    this.levelExitStuckWatchMs = 0;
+    this.mobileControls?.setEnabled(false);
+
+    const isFinalLevel = this.levelIndex >= LEVELS.length - 1;
+    if (isFinalLevel) {
+      this.registry.remove('runScore');
+      this.registry.remove('runCoins');
+      const victoryDelayMs = isMobileTouchDevice() ? 0 : 800;
+      this.scheduleRealtime(() => this.gameOver(true), victoryDelayMs);
+      return;
+    }
+
+    this.levelTransitioning = true;
+    this.saveRunStateForContinue();
+    this.levelCompleteBanner.setVisible(false);
+
+    if (isMobileTouchDevice()) {
+      this.prepareBossExitHandoff();
+      this.goToNextLevel();
+      return;
+    }
+
+    const fadeOut = this.add
+      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0)
+      .setDepth(400);
+
+    const fadeDurationMs = 350;
+    this.prepareBossExitHandoff();
+
+    const fadeStartedAt = performance.now();
+    let fadeDone = false;
+
+    const completeFade = (): void => {
+      if (fadeDone) return;
+      fadeDone = true;
+      this.goToNextLevel();
+    };
+
+    this.tweens.add({
+      targets: fadeOut,
+      alpha: 1,
+      duration: fadeDurationMs,
+      ease: 'Cubic.easeIn',
+      onComplete: completeFade,
+    });
+
+    const tickFade = (): void => {
+      if (fadeDone || !this.scene.isActive()) return;
+      const progress = Math.min(1, (performance.now() - fadeStartedAt) / fadeDurationMs);
+      fadeOut.setAlpha(progress);
+      if (progress < 1) {
+        requestAnimationFrame(tickFade);
+      } else {
+        completeFade();
+      }
+    };
+    requestAnimationFrame(tickFade);
+
+    this.levelExitRealtimeSafety = this.scheduleRealtime(() => {
+      this.levelExitRealtimeSafety = undefined;
+      completeFade();
+    }, fadeDurationMs + 200);
   }
 
   private setupCollisions(): void {
@@ -1149,6 +1388,11 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
 
+    if (this.levelTransitioning && this.nextLevelHandoffStarted) {
+      this.maybeRetrySceneHandoff();
+      return;
+    }
+
     if (this.inputManager.isPauseJustPressed()) {
       if (!this.levelTransitioning && !this.levelExitActive) {
         this.setPaused(!this.paused);
@@ -1259,213 +1503,35 @@ export default class GameScene extends Phaser.Scene {
     [...this.playerProjectiles.getChildren()].forEach((p) => p.destroy());
     [...this.projectiles.getChildren()].forEach((p) => p.destroy());
 
-    if (isMobileTouchDevice()) {
-      this.levelCompleteBanner.setVisible(false);
-      this.levelTransitioning = true;
-      this.registry.set('runScore', this.player.score);
-      this.registry.set('runCoins', this.player.coins);
-      this.registry.set(RUN_MIMU1_KEY, this.characterId);
-      this.registry.set('characterId', this.characterId);
-      this.goToNextLevel();
-      return;
-    }
-
     this.levelExitActive = true;
     this.revealExitFloor();
     const gate = getArenaExitGatePosition();
     this.exitGateTarget = new Phaser.Math.Vector2(gate.x, gate.y);
     this.beginLevelExitWalk();
-    this.scheduleLevelExitSafetyFinish(5000);
-  }
-
-  private revealExitFloor(): void {
-    const level = getLevel(this.levelIndex);
-    if (!hasFloorTexture(this, level.id, 'exit')) return;
-
-    this.floorSprite?.destroy();
-    const exitFloor = this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, getFloorTextureKey(level.id, 'exit'));
-    exitFloor.setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
-    exitFloor.setDepth(1);
-    if (isMobileTouchDevice()) {
-      exitFloor.setAlpha(1);
-      this.floorSprite = exitFloor;
-      return;
-    }
-
-    exitFloor.setAlpha(0);
-
-    this.tweens.add({
-      targets: exitFloor,
-      alpha: 1,
-      duration: 750,
-      ease: 'Cubic.easeOut',
-      onComplete: () => {
-        this.floorSprite?.destroy();
-        this.floorSprite = exitFloor;
-      },
-    });
-
-    this.scheduleRealtime(() => {
-      if (!this.scene.isActive() || !exitFloor.active) return;
-      if (exitFloor.alpha < 1) {
-        exitFloor.setAlpha(1);
-        this.floorSprite?.destroy();
-        this.floorSprite = exitFloor;
-      }
-    }, 850);
-  }
-
-  private updateLevelExit(_delta: number): void {
-    if (isMobileTouchDevice()) return;
-    if (!this.exitGateTarget) return;
-
-    this.forceGameplayClockRunning();
-
-    const target = this.exitGateTarget;
-    const dist = Phaser.Math.Distance.Between(this.player.x, this.player.y, target.x, target.y);
-
-    if (dist < 16) {
-      this.finishLevelExit();
-      return;
-    }
-
-    const angle = Phaser.Math.Angle.Between(this.player.x, this.player.y, target.x, target.y);
-    const walk = { x: Math.cos(angle), y: Math.sin(angle) };
-    this.player.setVelocity(walk.x * this.player.moveSpeed, walk.y * this.player.moveSpeed);
-
-    this.player.updateVisuals(walk);
-    this.playerWalkingSfx.update(this.player, walk, true);
-    this.hud.update(this.player, this.waveManager, getLevel(this.levelIndex).name, this.levelIndex);
-    this.mobileControls?.update(this.player);
-  }
-
-  private finishLevelExit(): void {
-    if (this.levelTransitioning || this.gameEnding) return;
-
-    this.clearMobileExitRaf();
-    this.clearMobileBossExitForceComplete();
-    this.clearLevelExitRealtimeSafety();
-    this.tweens.killTweensOf(this.player);
-
-    this.levelExitActive = false;
-    this.playerWalkingSfx.stop();
-    this.player.setVelocity(0, 0);
-    this.exitGateTarget = undefined;
-    this.mobileControls?.setEnabled(false);
-
-    const isFinalLevel = this.levelIndex >= LEVELS.length - 1;
-    if (isFinalLevel) {
-      this.registry.remove('runScore');
-      this.registry.remove('runCoins');
-      const victoryDelayMs = isMobileTouchDevice() ? 0 : 800;
-      this.scheduleRealtime(() => this.gameOver(true), victoryDelayMs);
-      return;
-    }
-
-    if (isMobileTouchDevice()) {
-      this.levelTransitioning = true;
-      this.registry.set('runScore', this.player.score);
-      this.registry.set('runCoins', this.player.coins);
-      this.registry.set(RUN_MIMU1_KEY, this.characterId);
-      this.registry.set('characterId', this.characterId);
-      this.prepareBossExitHandoff();
-      this.goToNextLevel();
-      return;
-    }
-
-    this.levelTransitioning = true;
-    this.registry.set('runScore', this.player.score);
-    this.registry.set('runCoins', this.player.coins);
-    this.registry.set(RUN_MIMU1_KEY, this.characterId);
-    this.registry.set('characterId', this.characterId);
-
-    const fadeOut = this.add
-      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0)
-      .setDepth(400);
-
-    const fadeDurationMs = 350;
-
-    this.prepareBossExitHandoff();
-
-    const fadeStartedAt = performance.now();
-    let fadeDone = false;
-
-    const completeFade = (): void => {
-      if (fadeDone) return;
-      fadeDone = true;
-      this.goToNextLevel();
-    };
-
-    this.tweens.add({
-      targets: fadeOut,
-      alpha: 1,
-      duration: fadeDurationMs,
-      ease: 'Cubic.easeIn',
-      onComplete: completeFade,
-    });
-
-    const tickFade = (): void => {
-      if (fadeDone || !this.scene.isActive()) return;
-      const progress = Math.min(1, (performance.now() - fadeStartedAt) / fadeDurationMs);
-      fadeOut.setAlpha(progress);
-      if (progress < 1) {
-        requestAnimationFrame(tickFade);
-      } else {
-        completeFade();
-      }
-    };
-    requestAnimationFrame(tickFade);
-
-    this.levelExitRealtimeSafety = this.scheduleRealtime(() => {
-      this.levelExitRealtimeSafety = undefined;
-      completeFade();
-    }, fadeDurationMs + 200);
+    this.scheduleLevelExitSafetyFinish(8000);
   }
 
   private goToNextLevel(): void {
     if (this.gameEnding || this.nextLevelHandoffStarted) return;
     this.nextLevelHandoffStarted = true;
 
-    const nextLevelIndex = this.levelIndex + 1;
-    const nextSceneKey = this.levelIndex === 0 ? CHARACTER_SELECT_SCENE_KEY : 'GameScene';
-    const payload =
-      this.levelIndex === 0
-        ? { levelIndex: nextLevelIndex, continueRun: true }
-        : { characterId: this.characterId, levelIndex: nextLevelIndex };
+    const { nextSceneKey } = this.getNextLevelHandoff();
 
     this.clearLevelAdvanceRealtimeSafety();
     this.clearMobileBossExitForceComplete();
     this.prepareBossExitHandoff();
 
-    if (isMobileTouchDevice()) {
-      const launch = (): void => {
-        if (this.game.scene.isActive(nextSceneKey)) return;
-        launchSceneNow(this.game, nextSceneKey, payload);
-      };
-
-      if (nextSceneKey === CHARACTER_SELECT_SCENE_KEY) {
-        void ensureCharacterSelectAssets(this).finally(launch);
-      } else {
-        launch();
-      }
-
-      this.levelAdvanceRealtimeSafety = this.scheduleRealtime(() => {
-        this.levelAdvanceRealtimeSafety = undefined;
-        if (!this.game.scene.isActive(nextSceneKey)) {
-          launchSceneNow(this.game, nextSceneKey, payload);
-        }
-      }, 100, { allowInactive: true });
-      return;
+    if (nextSceneKey === CHARACTER_SELECT_SCENE_KEY) {
+      void ensureCharacterSelectAssets(this).finally(() => this.launchNextSceneHandoff());
+    } else {
+      this.launchNextSceneHandoff();
     }
 
-    const handoffDelay = this.sceneHandoffDelayMs();
-    startSceneNextTick(this.game, nextSceneKey, payload, handoffDelay);
+    this.scheduleHandoffSafetyRetries();
     this.levelAdvanceRealtimeSafety = this.scheduleRealtime(() => {
       this.levelAdvanceRealtimeSafety = undefined;
-      if (!this.game.scene.isActive(nextSceneKey)) {
-        startSceneNextTick(this.game, nextSceneKey, payload, 0);
-      }
-    }, handoffDelay + 1200, { allowInactive: true });
+      this.maybeRetrySceneHandoff();
+    }, 3500, { allowInactive: true });
   }
 
   private transitionToVictoryScreen(): void {
