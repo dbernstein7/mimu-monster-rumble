@@ -1503,6 +1503,14 @@ export default class GameScene extends Phaser.Scene {
     [...this.playerProjectiles.getChildren()].forEach((p) => p.destroy());
     [...this.projectiles.getChildren()].forEach((p) => p.destroy());
 
+    if (isMobileTouchDevice()) {
+      this.levelTransitioning = true;
+      this.saveRunStateForContinue();
+      this.prepareBossExitHandoff();
+      this.goToNextLevel();
+      return;
+    }
+
     this.levelExitActive = true;
     this.revealExitFloor();
     const gate = getArenaExitGatePosition();
